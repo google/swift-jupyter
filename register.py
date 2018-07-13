@@ -25,76 +25,99 @@ from IPython.utils.tempdir import TemporaryDirectory
 
 
 def main():
-  args = parse_args()
+    args = parse_args()
 
-  if platform.system() == 'Linux':
-    lldb_python = '%s/usr/lib/python2.7/site-packages' % args.swift_toolchain
-    swift_libs = '%s/usr/lib/swift/linux' % args.swift_toolchain
-    repl_swift = '%s/usr/bin/repl_swift' % args.swift_toolchain
-  elif platform.system() == 'Darwin':
-    lldb_python = '%s/System/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/Python' % args.swift_toolchain
-    swift_libs = '%s/usr/lib/swift/macosx' % args.swift_toolchain
-    repl_swift = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/repl_swift' % args.swift_toolchain
-  else:
-    raise Exception('Unknown system %s' % platform.system())
+    if args.swift_toolchain is not None:
+        if platform.system() == 'Linux':
+            lldb_python = '%s/usr/lib/python2.7/site-packages' % args.swift_toolchain
+            swift_libs = '%s/usr/lib/swift/linux' % args.swift_toolchain
+            repl_swift = '%s/usr/bin/repl_swift' % args.swift_toolchain
+        elif platform.system() == 'Darwin':
+            lldb_python = '%s/System/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/Python' % args.swift_toolchain
+            swift_libs = '%s/usr/lib/swift/macosx' % args.swift_toolchain
+            repl_swift = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/repl_swift' % args.swift_toolchain
+        else:
+            raise Exception('Unknown system %s' % platform.system())
+    else:
+        # TODO: Make this work on macos
+        swift_build_dir = '%s/swift-linux-x86_64' % args.swift_build
+        lldb_build_dir = '%s/lldb-linux-x86_64' % args.swift_build
 
-  script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-  kernel_json = {
-    'argv': [
-        sys.executable,
-        '%s/swift_kernel.py' % script_dir,
-        '-f',
-        '{connection_file}',
-    ],
-    'display_name': 'Swift',
-    'language': 'swift',
-    'env': {
-      'PYTHONPATH': lldb_python,
-      'LD_LIBRARY_PATH': swift_libs,
-      'REPL_SWIFT_PATH': repl_swift,
-    },
-  }
-  print('kernel.json is\n%s' % json.dumps(kernel_json, indent=2))
+        lldb_python = '%s/lib/python2.7/site-packages' % lldb_build_dir
+        swift_libs = '%s/lib/swift/linux' % swift_build_dir
+        repl_swift = '%s/bin/repl_swift' % lldb_build_dir
 
-  with TemporaryDirectory() as td:
-    os.chmod(td, 0o755)
-    with open(os.path.join(td, 'kernel.json'), 'w') as f:
-      json.dump(kernel_json, f, indent=2)
-    KernelSpecManager().install_kernel_spec(
-        td, 'swift', user=args.user, prefix=args.prefix, replace=True)
+    if not os.path.isdir(lldb_python):
+        raise Exception('lldb python libs not found at %s' % lldb_python)
+    if not os.path.isdir(swift_libs):
+        raise Exception('swift libs not found at %s' % swift_libs)
+    if not os.path.isfile(repl_swift):
+        raise Exception('repl_swift binary not found at %s' % repl_swift)
 
-  print('Registered kernel!')
+    script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+    kernel_json = {
+        'argv': [
+                sys.executable,
+                '%s/swift_kernel.py' % script_dir,
+                '-f',
+                '{connection_file}',
+        ],
+        'display_name': 'Swift',
+        'language': 'swift',
+        'env': {
+            'PYTHONPATH': lldb_python,
+            'LD_LIBRARY_PATH': swift_libs,
+            'REPL_SWIFT_PATH': repl_swift,
+        },
+    }
+    print('kernel.json is\n%s' % json.dumps(kernel_json, indent=2))
+
+    with TemporaryDirectory() as td:
+        os.chmod(td, 0o755)
+        with open(os.path.join(td, 'kernel.json'), 'w') as f:
+            json.dump(kernel_json, f, indent=2)
+        KernelSpecManager().install_kernel_spec(
+            td, 'swift', user=args.user, prefix=args.prefix, replace=True)
+
+    print('Registered kernel!')
 
 
 def parse_args():
-  parser = argparse.ArgumentParser(
-      description='Register KernelSpec for Swift Kernel')
+    parser = argparse.ArgumentParser(
+            description='Register KernelSpec for Swift Kernel')
 
-  prefix_locations = parser.add_mutually_exclusive_group()
-  prefix_locations.add_argument(
-      '--user',
-      help='Register KernelSpec in user homedirectory',
-      action='store_true')
-  prefix_locations.add_argument(
-      '--sys-prefix',
-      help='Register KernelSpec in sys.prefix. Useful in conda / virtualenv',
-      action='store_true',
-      dest='sys_prefix')
-  prefix_locations.add_argument(
-      '--prefix',
-      help='Register KernelSpec in this prefix',
-      default=None)
+    prefix_locations = parser.add_mutually_exclusive_group()
+    prefix_locations.add_argument(
+        '--user',
+        help='Register KernelSpec in user homedirectory',
+        action='store_true')
+    prefix_locations.add_argument(
+        '--sys-prefix',
+        help='Register KernelSpec in sys.prefix. Useful in conda / virtualenv',
+        action='store_true',
+        dest='sys_prefix')
+    prefix_locations.add_argument(
+        '--prefix',
+        help='Register KernelSpec in this prefix',
+        default=None)
 
-  parser.add_argument(
-      '--swift-toolchain',
-      help='Path to the swift toolchain')
+    swift_locations = parser.add_mutually_exclusive_group(required=True)
+    swift_locations.add_argument(
+        '--swift-toolchain',
+        help='Path to a prebuilt swift toolchain')
+    swift_locations.add_argument(
+        '--swift-build',
+        help='Path to build-script build directory, containing swift and lldb')
 
-  args = parser.parse_args()
-  if args.sys_prefix:
-    args.prefix = sys.prefix
-  args.swift_toolchain = os.path.realpath(args.swift_toolchain)
-  return args
+    args = parser.parse_args()
+    if args.sys_prefix:
+        args.prefix = sys.prefix
+    if args.swift_toolchain is not None:
+        args.swift_toolchain = os.path.realpath(args.swift_toolchain)
+    if args.swift_build is not None:
+        args.swift_build = os.path.realpath(args.swift_build)
+    return args
 
 
 if __name__ == '__main__':
-  main()
+    main()
