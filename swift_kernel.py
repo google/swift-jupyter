@@ -69,7 +69,8 @@ class SwiftKernel(Kernel):
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
         # Execute the code.
-        result = self.target.EvaluateExpression(str(code), self.expr_opts)
+        result = self.target.EvaluateExpression(
+            code.encode('utf8'), self.expr_opts)
 
         # Send stdout to the client.
         while True:
