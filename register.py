@@ -28,6 +28,7 @@ def main():
     args = parse_args()
 
     if args.swift_toolchain is not None:
+        # Use a prebuilt swift toolchain.
         if platform.system() == 'Linux':
             lldb_python = '%s/usr/lib/python2.7/site-packages' % args.swift_toolchain
             swift_libs = '%s/usr/lib/swift/linux' % args.swift_toolchain
@@ -39,7 +40,12 @@ def main():
         else:
             raise Exception('Unknown system %s' % platform.system())
     else:
+        # Use a build dir created by build-script.
+
         # TODO: Make this work on macos
+        if platform.system() != 'Linux':
+            raise Exception('build-script build dir only implemented on Linux')
+
         swift_build_dir = '%s/swift-linux-x86_64' % args.swift_build
         lldb_build_dir = '%s/lldb-linux-x86_64' % args.swift_build
 
