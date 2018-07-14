@@ -24,19 +24,27 @@ from jupyter_client.kernelspec import KernelSpecManager
 from IPython.utils.tempdir import TemporaryDirectory
 
 
-def main():
-    args = parse_args()
+def make_kernel_env(args):
+    """Returns environment varialbes that tell the kernel where things are."""
+
+    kernel_env = {}
 
     if args.swift_toolchain is not None:
         # Use a prebuilt Swift toolchain.
         if platform.system() == 'Linux':
-            lldb_python = '%s/usr/lib/python2.7/site-packages' % args.swift_toolchain
-            swift_libs = '%s/usr/lib/swift/linux' % args.swift_toolchain
-            repl_swift = '%s/usr/bin/repl_swift' % args.swift_toolchain
+            kernel_env['PYTHONPATH'] = '%s/usr/lib/python2.7/site-packages' % args.swift_toolchain
+            kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/linux' % args.swift_toolchain
+            kernel_env['REPL_SWIFT_PATH'] = '%s/usr/bin/repl_swift' % args.swift_toolchain
+
+            # Points SourceKitten at SourceKit.
+            kernel_env['LINUX_SOURCEKIT_LIB_PATH'] = '%s/usr/lib' % args.swift_toolchain
         elif platform.system() == 'Darwin':
-            lldb_python = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/Python' % args.swift_toolchain
-            swift_libs = '%s/usr/lib/swift/macosx' % args.swift_toolchain
-            repl_swift = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/repl_swift' % args.swift_toolchain
+            kernel_env['PYTHONPATH'] = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/Python' % args.swift_toolchain
+            kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/macosx' % args.swift_toolchain
+            kernel_env['REPL_SWIFT_PATH'] = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/repl_swift' % args.swift_toolchain
+
+            # Points SourceKitten at SourceKit.
+            kernel_env['XCODE_DEFAULT_TOOLCHAIN_OVERRIDE'] = '%s/usr/lib' % args.swift_toolchain
         else:
             raise Exception('Unknown system %s' % platform.system())
 
@@ -50,9 +58,12 @@ def main():
         swift_build_dir = '%s/swift-linux-x86_64' % args.swift_build
         lldb_build_dir = '%s/lldb-linux-x86_64' % args.swift_build
 
-        lldb_python = '%s/lib/python2.7/site-packages' % lldb_build_dir
-        swift_libs = '%s/lib/swift/linux' % swift_build_dir
-        repl_swift = '%s/bin/repl_swift' % lldb_build_dir
+        kernel_env['PYTHONPATH'] = '%s/lib/python2.7/site-packages' % lldb_build_dir
+        kernel_env['LD_LIBRARY_PATH'] = '%s/lib/swift/linux' % swift_build_dir
+        kernel_env['REPL_SWIFT_PATH'] = '%s/bin/repl_swift' % lldb_build_dir
+
+        # Points SourceKitten at SourceKit.
+        kernel_env['LINUX_SOURCEKIT_LIB_PATH'] = '%s/lib' % swift_build_dir
 
     elif args.xcode_path is not None:
         # Use an Xcode provided Swift toolchain.
@@ -63,16 +74,50 @@ def main():
         lldb_framework = '%s/Contents/SharedFrameworks/LLDB.framework' % args.xcode_path
         xcode_toolchain = '%s/Contents/Developer/Toolchains/XcodeDefault.xctoolchain' % args.xcode_path
 
-        lldb_python = '%s/Resources/Python' % lldb_framework
-        repl_swift = '%s/Resources/repl_swift' % lldb_framework
-        swift_libs = '%s/usr/lib/swift/macosx' % xcode_toolchain
+        kernel_env['PYTHONPATH'] = '%s/Resources/Python' % lldb_framework
+        kernel_env['REPL_SWIFT_PATH'] = '%s/Resources/repl_swift' % lldb_framework
+        kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/macosx' % xcode_toolchain
 
-    if not os.path.isdir(lldb_python):
-        raise Exception('lldb python libs not found at %s' % lldb_python)
-    if not os.path.isdir(swift_libs):
-        raise Exception('swift libs not found at %s' % swift_libs)
-    if not os.path.isfile(repl_swift):
-        raise Exception('repl_swift binary not found at %s' % repl_swift)
+        # Points SourceKitten at SourceKit.
+        kernel_env['XCODE_DEFAULT_TOOLCHAIN_OVERRIDE'] = '%s/usr/lib' % xcode_toolchain
+
+    if args.sourcekitten is not None:
+        kernel_env['SOURCEKITTEN'] = args.sourcekitten
+
+    return kernel_env
+
+
+def validate_kernel_env(kernel_env):
+    """Validates that the env vars refer to things that actually exist."""
+
+    if not os.path.isdir(kernel_env['PYTHONPATH']):
+        raise Exception('lldb python libs not found at %s' %
+                        kernel_env['PYTHONPATH'])
+    if not os.path.isdir(kernel_env['LD_LIBRARY_PATH']):
+        raise Exception('swift libs not found at %s' %
+                        kernel_env['LD_LIBRARY_PATH'])
+    if not os.path.isfile(kernel_env['REPL_SWIFT_PATH']):
+        raise Exception('repl_swift binary not found at %s' %
+                        kernel_env['REPL_SWIFT_PATH'])
+
+    if 'SOURCEKITTEN' in kernel_env \
+        and not os.path.isfile(kernel_env['SOURCEKITTEN']):
+        raise Exception('sourcekitten not found at %s' % kernel_env['SOURCEKITTEN'])
+    if 'LINUX_SOURCEKIT_LIB_PATH' in kernel_env \
+        and not os.path.isfile(os.path.join(
+            kernel_env['LINUX_SOURCEKIT_LIB_PATH'], 'libsourcekitdInProc.so')):
+        raise Exception('libsourcekitdInProc.so not found at %s' %
+                        kernel_env['LINUX_SOURCEKIT_LIB_PATH'])
+    if 'XCODE_DEFAULT_TOOLCHAIN_OVERRIDE' in kernel_env \
+        and not os.path.isdir(kernel_env['XCODE_DEFAULT_TOOLCHAIN_OVERRIDE']):
+        raise Exception('xcode toolchain override not found at %s' %
+                        kernel_env['XCODE_DEFAULT_TOOLCHAIN_OVERRIDE'])
+
+
+def main():
+    args = parse_args()
+    kernel_env = make_kernel_env(args)
+    validate_kernel_env(kernel_env)
 
     script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
     kernel_json = {
@@ -84,11 +129,7 @@ def main():
         ],
         'display_name': args.kernel_name,
         'language': 'swift',
-        'env': {
-            'PYTHONPATH': lldb_python,
-            'LD_LIBRARY_PATH': swift_libs,
-            'REPL_SWIFT_PATH': repl_swift,
-        },
+        'env': kernel_env,
     }
     print('kernel.json is\n%s' % json.dumps(kernel_json, indent=2))
 
@@ -109,7 +150,7 @@ def main():
 def parse_args():
     parser = argparse.ArgumentParser(
             description='Register KernelSpec for Swift Kernel')
-            
+
     parser.add_argument(
         '--kernel-name',
         help='Kernel display name',
@@ -142,6 +183,10 @@ def parse_args():
         '--xcode-path',
         help='Path to Xcode app bundle')
 
+    parser.add_argument(
+        '--sourcekitten',
+        help='Path to sourcekitten binary (enables code completion)')
+
     args = parser.parse_args()
     if args.sys_prefix:
         args.prefix = sys.prefix
@@ -151,6 +196,8 @@ def parse_args():
         args.swift_build = os.path.realpath(args.swift_build)
     if args.xcode_path is not None:
         args.xcode_path = os.path.realpath(args.xcode_path)
+    if args.sourcekitten is not None:
+        args.sourcekitten = os.path.realpath(args.sourcekitten)
     return args
 
 
