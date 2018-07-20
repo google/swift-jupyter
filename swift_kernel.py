@@ -20,6 +20,7 @@ import lldb
 import subprocess
 import sys
 import os
+import re
 
 from ipykernel.kernelbase import Kernel
 
@@ -137,6 +138,58 @@ class Completer:
         return completions
 
 
+class ExecutionResult:
+    """Base class for the result of executing code."""
+    pass
+
+
+class ExecutionResultSuccess(ExecutionResult):
+    """Base class for the result of successfully executing code."""
+    pass
+
+
+class ExecutionResultError(ExecutionResult):
+    """Base class for the result of unsuccessfully executing code."""
+    def description(self):
+        raise NotImplementedError()
+
+
+class SuccessWithoutValue(ExecutionResultSuccess):
+    """The code executed successfully, and did not produce a value."""
+    def __init__(self, stdout):
+        self.stdout = stdout # str
+
+
+class SuccessWithValue(ExecutionResultSuccess):
+    """The code executed successfully, and produced a value."""
+    def __init__(self, stdout, result):
+        self.stdout = stdout # str
+        self.result = result # SBValue
+
+
+class PreprocessorError(ExecutionResultError):
+    """There was an error preprocessing the code."""
+    def __init__(self, exception):
+        self.exception = exception # PreprocessorException
+
+    def description(self):
+        return str(self.exception)
+
+
+class PreprocessorException(Exception):
+    pass
+
+
+class SwiftError(ExecutionResultError):
+    """There was a compile or runtime error."""
+    def __init__(self, stdout, result):
+        self.stdout = stdout # str
+        self.result = result # SBValue
+
+    def description(self):
+        return self.result.error.description
+
+
 class SwiftKernel(Kernel):
     implementation = 'SwiftKernel'
     implementation_version = '0.1'
@@ -155,9 +208,9 @@ class SwiftKernel(Kernel):
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
-        self.debugger.SetAsync(False)
         if not self.debugger:
             raise Exception('Could not start debugger')
+        self.debugger.SetAsync(False)
 
         # LLDB crashes while trying to load some Python stuff on Mac. Maybe
         # something is misconfigured? This works around the problem by telling
@@ -202,63 +255,126 @@ class SwiftKernel(Kernel):
           },
           self.log)
 
-    def do_execute(self, code, silent, store_history=True,
-                   user_expressions=None, allow_stdin=False):
-        # Execute the code.
-        result = self.target.EvaluateExpression(
-            code.encode('utf8'), self.expr_opts)
+    def _preprocess_and_execute(self, code):
+        try:
+            preprocessed = self._preprocess(code)
+        except PreprocessorException as e:
+            return PreprocessorError(e)
 
-        # Send stdout to the client.
+        return self._execute(preprocessed)
+
+    def _preprocess(self, code):
+        lines = code.split('\n')
+        preprocessed_lines = [
+                self._preprocess_line(i, line) for i, line in enumerate(lines)]
+        return '\n'.join(preprocessed_lines)
+
+    def _preprocess_line(self, line_index, line):
+        include_match = re.match(r'^\s*%include (.*)$', line)
+        if include_match is not None:
+            return self._read_include(line_index, include_match.group(1))
+        return line
+
+    def _read_include(self, line_index, rest_of_line):
+        name_match = re.match(r'^\s*"([^"]+)"\s*', rest_of_line)
+        if name_match is None:
+            raise PreprocessorException(
+                    'Line %d: %%include must be followed by a name in quotes' % (
+                            line_index + 1))
+        name = name_match.group(1)
+
+        include_paths = [
+            os.path.dirname(os.path.realpath(sys.argv[0]))
+        ]
+
+        code = None
+        for include_path in include_paths:
+            try:
+                with open(os.path.join(include_path, name), 'r') as f:
+                    code = f.read()
+            except IOError:
+                continue
+
+        if code is None:
+            raise PreprocessorException(
+                    'Line %d: Could not find "%s". Searched %s.' % (
+                            line_index + 1, name, include_paths))
+
+        return '\n'.join([
+            '#sourceLocation(file: "%s", line: 1)' % name,
+            code,
+            '#sourceLocation(file: "<REPL>", line: %d)' % (line_index + 1),
+            ''
+        ])
+
+    def _execute(self, code):
+        result = self.target.EvaluateExpression(
+                code.encode('utf8'), self.expr_opts)
+        stdout = ''.join([buf for buf in self._get_stdout()])
+
+        if result.error.type == lldb.eErrorTypeInvalid:
+            return SuccessWithValue(stdout, result)
+        elif result.error.type == lldb.eErrorTypeGeneric:
+            return SuccessWithoutValue(stdout)
+        else:
+            return SwiftError(stdout, result)
+
+    def _get_stdout(self):
         while True:
             BUFFER_SIZE = 1000
             stdout_buffer = self.process.GetSTDOUT(BUFFER_SIZE)
             if len(stdout_buffer) == 0:
                 break
+            yield stdout_buffer
+
+    def do_execute(self, code, silent, store_history=True,
+                   user_expressions=None, allow_stdin=False):
+        result = self._preprocess_and_execute(code)
+
+        # Send stdout to client.
+        try:
             self.send_response(self.iopub_socket, 'stream', {
                 'name': 'stdout',
-                'text': stdout_buffer
+                'text': result.stdout
             })
+        except AttributeError:
+            # Not all results have stdout.
+            pass
 
-        if result.error.type == lldb.eErrorTypeInvalid:
-            # Success, with value.
-            self.completer.record_successful_execution(code)
+        # Send values/errors and status to the client.
+        if isinstance(result, SuccessWithValue):
             self.send_response(self.iopub_socket, 'execute_result', {
                 'execution_count': self.execution_count,
                 'data': {
-                    'text/plain': result.description
+                    'text/plain': result.result.description
                 }
             })
-
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
             }
-        elif result.error.type == lldb.eErrorTypeGeneric:
-            # Success, without value.
-            self.completer.record_successful_execution(code)
+        elif isinstance(result, SuccessWithoutValue):
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
             }
-        else:
-            # Error!
+        elif isinstance(result, ExecutionResultError):
             self.send_response(self.iopub_socket, 'error', {
                 'execution_count': self.execution_count,
                 'ename': '',
                 'evalue': '',
-                'traceback': [result.error.description],
+                'traceback': [result.description()],
             })
-
             return {
                 'status': 'error',
                 'execution_count': self.execution_count,
                 'ename': '',
                 'evalue': '',
-                'traceback': [result.error.description],
+                'traceback': [result.description()],
             }
 
     def do_complete(self, code, cursor_pos):

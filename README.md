@@ -27,3 +27,15 @@ python2 register.py --sys-prefix --swift-toolchain <path to swift toolchain> --s
 (omit the `--sourcekitten <path to sourcekitten binary>` if you did not install SourceKitten.)
 
 Now run `jupyter notebook`, and it should have a Swift kernel.
+
+# Usage Instructions
+
+## %include directives
+
+`%include` directives let you include code from files. To use them, put a line
+`%include "<filename>"` in your cell. The kernel will preprocess your cell and
+replace the `%include` directive with the contents of the file before sending
+your cell to the Swift interpreter.
+
+`<filename>` must be relative to the directory containing `swift_kernel.py`.
+We'll probably add more search paths later.
