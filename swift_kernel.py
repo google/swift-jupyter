@@ -185,6 +185,10 @@ class SwiftKernel(Kernel):
         self.expr_opts.SetLanguage(swift_language)
         self.expr_opts.SetREPLMode(True)
 
+        # Sets an infinite timeout so that users can run aribtrarily long
+        # computations.
+        self.expr_opts.SetTimeoutInMicroSeconds(0)
+
     def _init_completer(self):
       self.completer = Completer(
           os.environ.get('SOURCEKITTEN'),
