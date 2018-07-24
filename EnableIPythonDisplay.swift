@@ -25,6 +25,8 @@ import func Glibc.dlopen
 #endif
 dlopen("libpython2.7.so", RTLD_NOW | RTLD_GLOBAL)
 
+/// The underscore marks these as "system-defined" variables that the user
+/// shouldn't redeclare.
 var _socket: PythonObject = Python.None
 var _shell: PythonObject = Python.None
 

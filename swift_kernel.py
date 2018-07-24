@@ -276,6 +276,8 @@ class SwiftKernel(Kernel):
         if isinstance(result, ExecutionResultError):
             self.log.error(result.description_and_stdout())
 
+        # The underscore marks this as a "system-defined" variable that the
+        # user shouldn't redeclare.
         decl_code = """
             var _kernelCommunicator = KernelCommunicator(
                 jupyterSession: JupyterSession(id: %s, key: %s,
