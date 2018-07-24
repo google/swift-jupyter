@@ -1,6 +1,6 @@
 # Swift-Jupyter
 
-This is a Jupyter Kernel for Swift, intended to make it possible to use Juptyer
+This is a Jupyter Kernel for Swift, intended to make it possible to use Jupyter
 with the [Swift for Tensorflow](https://github.com/tensorflow/swift) project.
 
 This kernel is currently very barebones and experimental.
@@ -45,7 +45,7 @@ Prerequisites:
 
 * Install the `ipykernel` Python library, and any other Python libraries
   that you want output from (such as `matplotlib` or `pandas`) on your
-  system Python. (Do not install them on the virtualenv from the Swift-Juptyer
+  system Python. (Do not install them on the virtualenv from the Swift-Jupyter
   installation instructions. Swift's Python interop talks to your system
   Python.)
 
@@ -77,7 +77,7 @@ plt.title("Oscillations")
 plt.show()
 ```
 
-![Screenshot of running the above two snippets of code in Juptyer](./screenshots/display_matplotlib.png)
+![Screenshot of running the above two snippets of code in Jupyter](./screenshots/display_matplotlib.png)
 
 ```swift
 let display = Python.import("IPython.display")
@@ -88,7 +88,7 @@ let pd = Python.import("pandas")
 display.display(pd.DataFrame.from_records([["col 1": 3, "col 2": 5], ["col 1": 8, "col 2": 2]]))
 ```
 
-![Screenshot of running the above two snippets of code in Juptyer](./screenshots/display_pandas.png)
+![Screenshot of running the above two snippets of code in Jupyter](./screenshots/display_pandas.png)
 
 [Swift's Python interop]: https://github.com/tensorflow/swift/blob/master/docs/PythonInteroperability.md
 

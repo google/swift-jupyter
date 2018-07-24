@@ -12,10 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
- * Hooks IPython to the KernelCommunicator, so that it can send display
- * messages to Juptyer.
- */
+/// Hooks IPython to the KernelCommunicator, so that it can send display
+/// messages to Jupyter.
 
 import Python
 
@@ -35,18 +33,18 @@ func enableIPythonDisplay() {
 
   let swift_shell = Python.import("swift_shell")
   let socketAndShell = swift_shell.create_shell(
-    username: _kernelCommunicator.juptyerSession.username,
-    session_id: _kernelCommunicator.juptyerSession.id,
-    key: _kernelCommunicator.juptyerSession.key)
+    username: _kernelCommunicator.jupyterSession.username,
+    session_id: _kernelCommunicator.jupyterSession.id,
+    key: _kernelCommunicator.jupyterSession.key)
   _socket = socketAndShell[0]
   _shell = socketAndShell[1]
 
-  func setParentMessage(parentMessage: ParentMessage) {
+  func updateParentMessage(to parentMessage: ParentMessage) {
     _shell.set_parent(json.loads(parentMessage.json))
   }
-  _kernelCommunicator.handleParentMessage(with: setParentMessage)
+  _kernelCommunicator.handleParentMessage(updateParentMessage)
 
-  func getDisplayMessages() -> JuptyerMessages {
+  func getDisplayMessages() -> [JupyterDisplayMessage] {
     func getBytes(_ py: PythonObject) -> [CChar] {
       // faster not-yet-introduced method
       // return py.swiftBytes!
@@ -58,10 +56,10 @@ func enableIPythonDisplay() {
     }
 
     let displayMessages = _socket.messages.map {
-      JuptyerDisplayMessage(parts: $0.map { getBytes($0) })
+      JupyterDisplayMessage(parts: $0.map { getBytes($0) })
     }
     _socket.messages = []
-    return JuptyerMessages(displayMessages: displayMessages)
+    return displayMessages
   }
   _kernelCommunicator.afterSuccessfulExecution(run: getDisplayMessages)
 }

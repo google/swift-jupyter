@@ -12,58 +12,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/*
- * A struct with functions that the kernel and the code running inside the
- * kernel use to talk to each other.
- *
- * Note that it would be more Juptyer-y for the communication to happen over
- * ZeroMQ. This is not currently possible, because ZeroMQ sends messages
- * asynchronously using IO threads, and LLDB pauses those IO threads, which
- * prevents them from sending the messages.
- */
+/// A struct with functions that the kernel and the code running inside the
+/// kernel use to talk to each other.
+///
+/// Note that it would be more Jupyter-y for the communication to happen over
+/// ZeroMQ. This is not currently possible, because ZeroMQ sends messages
+/// asynchronously using IO threads, and LLDB pauses those IO threads, which
+/// prevents them from sending the messages.
 public struct KernelCommunicator {
-  private var afterSuccessfulExecutionHandlers: [() -> JuptyerMessages]
+  private var afterSuccessfulExecutionHandlers: [() -> [JupyterDisplayMessage]]
   private var parentMessageHandlers: [(ParentMessage) -> ()]
 
-  public let juptyerSession: JuptyerSession
+  public let jupyterSession: JupyterSession
 
-  init(juptyerSession: JuptyerSession) {
+  init(jupyterSession: JupyterSession) {
     self.afterSuccessfulExecutionHandlers = []
     self.parentMessageHandlers = []
-    self.juptyerSession = juptyerSession
+    self.jupyterSession = jupyterSession
   }
 
-  /*
-   * Register a handler to run after the kernel successfully executes a cell
-   * of user code. The handler may return messages. These messages will be
-   * send to the Juptyer client.
-   */
+  /// Register a handler to run after the kernel successfully executes a cell
+  /// of user code. The handler may return messages. These messages will be
+  /// send to the Jupyter client.
   public mutating func afterSuccessfulExecution(
-      run handler: @escaping () -> JuptyerMessages) {
+      run handler: @escaping () -> [JupyterDisplayMessage]) {
     afterSuccessfulExecutionHandlers.append(handler)
   }
 
-  /*
-   * Register a handler to run when the parent message changes.
-   */
+  /// Register a handler to run when the parent message changes.
   public mutating func handleParentMessage(
-      with handler: @escaping (ParentMessage) -> ()) {
+      _ handler: @escaping (ParentMessage) -> ()) {
     parentMessageHandlers.append(handler)
   }
 
-  /*
-   * The kernel calls this after successfully executing a cell of user code.
-   */
-  public func triggerAfterSuccessfulExecution() -> JuptyerMessages {
-    return afterSuccessfulExecutionHandlers.reduce(JuptyerMessages()) {
-      (messages, handler) in messages + handler()
-    }
+  /// The kernel calls this after successfully executing a cell of user code.
+  public func triggerAfterSuccessfulExecution() -> [JupyterDisplayMessage] {
+    return afterSuccessfulExecutionHandlers.flatMap { $0() }
   }
 
-  /*
-   * The kernel calls this when the parent message changes.
-   */
-  public mutating func setParentMessage(
+  /// The kernel calls this when the parent message changes.
+  public mutating func updateParentMessage(
       to parentMessage: ParentMessage) {
     for parentMessageHandler in parentMessageHandlers {
       parentMessageHandler(parentMessage)
@@ -71,46 +59,20 @@ public struct KernelCommunicator {
   }
 }
 
-/*
- * A single serialized display message for the Juptyer client.
- */
-public struct JuptyerDisplayMessage {
+/// A single serialized display message for the Jupyter client.
+public struct JupyterDisplayMessage {
   public let parts: [[CChar]]
 }
 
-/*
- * A collection of serialized messages for the Jupyter client.
- */
-public struct JuptyerMessages {
-  public let displayMessages: [JuptyerDisplayMessage]
-
-  init() {
-    self.displayMessages = []
-  }
-
-  init(displayMessages: [JuptyerDisplayMessage]) {
-    self.displayMessages = displayMessages
-  }
-
-  static func +(a: JuptyerMessages, b: JuptyerMessages) -> JuptyerMessages {
-    return JuptyerMessages(
-      displayMessages: a.displayMessages + b.displayMessages)
-  }
-}
-
-/*
- * ParentMessage identifies the request that causes things to happen.
- * This lets Juptyer, for example, know which cell to display graphics
- * messages in.
- */
+/// ParentMessage identifies the request that causes things to happen.
+/// This lets Jupyter, for example, know which cell to display graphics
+/// messages in.
 public struct ParentMessage {
   let json: String
 }
 
-/*
- * The data necessary to identify and sign outgoing juptyer messages.
- */
-public struct JuptyerSession {
+/// The data necessary to identify and sign outgoing jupyter messages.
+public struct JupyterSession {
   let id: String
   let key: String
   let username: String

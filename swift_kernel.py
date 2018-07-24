@@ -278,7 +278,7 @@ class SwiftKernel(Kernel):
 
         decl_code = """
             var _kernelCommunicator = KernelCommunicator(
-                juptyerSession: JuptyerSession(id: %s, key: %s,
+                jupyterSession: JupyterSession(id: %s, key: %s,
                                                username: %s))
         """ % (json.dumps(self.session.session), json.dumps(self.session.key),
                json.dumps(self.session.username))
@@ -372,14 +372,14 @@ class SwiftKernel(Kernel):
             return
 
         messages = self._read_jupyter_messages(result.result)
-        self._send_juptyer_messages(messages)
+        self._send_jupyter_messages(messages)
 
     def _read_jupyter_messages(self, sbvalue):
         return {
             'display_messages': [
                 self._read_display_message(display_message_sbvalue)
                 for display_message_sbvalue
-                in sbvalue.GetChildMemberWithName('displayMessages')
+                in sbvalue
             ]
         }
 
@@ -392,13 +392,13 @@ class SwiftKernel(Kernel):
         return bytes(bytearray(
                 [byte_sbvalue.data.uint8[0] for byte_sbvalue in sbvalue]))
 
-    def _send_juptyer_messages(self, messages):
+    def _send_jupyter_messages(self, messages):
         for display_message in messages['display_messages']:
             self.iopub_socket.send_multipart(display_message)
 
     def _set_parent_message(self):
         result = self._execute("""
-            _kernelCommunicator.setParentMessage(to: ParentMessage(json: %s))
+            _kernelCommunicator.updateParentMessage(to: ParentMessage(json: %s))
         """ % json.dumps(json.dumps(squash_dates(self._parent_header))))
         if isinstance(result, ExecutionResultError):
             self.log.error(result.description_and_stdout())
