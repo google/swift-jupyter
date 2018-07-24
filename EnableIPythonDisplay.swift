@@ -46,8 +46,8 @@ func enableIPythonDisplay() {
   }
   _kernelCommunicator.handleParentMessage(updateParentMessage)
 
-  func getDisplayMessages() -> [JupyterDisplayMessage] {
-    func getBytes(_ py: PythonObject) -> [CChar] {
+  func consumeDisplayMessages() -> [JupyterDisplayMessage] {
+    func bytes(_ py: PythonObject) -> [CChar] {
       // faster not-yet-introduced method
       // return py.swiftBytes!
 
@@ -58,12 +58,12 @@ func enableIPythonDisplay() {
     }
 
     let displayMessages = _socket.messages.map {
-      JupyterDisplayMessage(parts: $0.map { getBytes($0) })
+      JupyterDisplayMessage(parts: $0.map { bytes($0) })
     }
     _socket.messages = []
     return displayMessages
   }
-  _kernelCommunicator.afterSuccessfulExecution(run: getDisplayMessages)
+  _kernelCommunicator.afterSuccessfulExecution(run: consumeDisplayMessages)
 }
 
 enableIPythonDisplay()
