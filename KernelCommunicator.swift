@@ -57,23 +57,23 @@ public struct KernelCommunicator {
       parentMessageHandler(parentMessage)
     }
   }
-}
 
-/// A single serialized display message for the Jupyter client.
-public struct JupyterDisplayMessage {
-  public let parts: [[CChar]]
-}
+  /// A single serialized display message for the Jupyter client.
+  public struct JupyterDisplayMessage {
+    public let parts: [[CChar]]
+  }
 
-/// ParentMessage identifies the request that causes things to happen.
-/// This lets Jupyter, for example, know which cell to display graphics
-/// messages in.
-public struct ParentMessage {
-  let json: String
-}
+  /// ParentMessage identifies the request that causes things to happen.
+  /// This lets Jupyter, for example, know which cell to display graphics
+  /// messages in.
+  public struct ParentMessage {
+    let json: String
+  }
 
-/// The data necessary to identify and sign outgoing jupyter messages.
-public struct JupyterSession {
-  let id: String
-  let key: String
-  let username: String
+  /// The data necessary to identify and sign outgoing jupyter messages.
+  public struct JupyterSession {
+    let id: String
+    let key: String
+    let username: String
+  }
 }

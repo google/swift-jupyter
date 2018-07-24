@@ -279,8 +279,8 @@ class SwiftKernel(Kernel):
         decl_code = """
             enum JupyterKernel {
                 static var communicator = KernelCommunicator(
-                    jupyterSession: JupyterSession(id: %s, key: %s,
-                                                   username: %s))
+                    jupyterSession: KernelCommunicator.JupyterSession(
+                        id: %s, key: %s, username: %s))
             }
         """ % (json.dumps(self.session.session), json.dumps(self.session.key),
                json.dumps(self.session.username))
@@ -401,7 +401,7 @@ class SwiftKernel(Kernel):
     def _set_parent_message(self):
         result = self._execute("""
             JupyterKernel.communicator.updateParentMessage(
-                to: ParentMessage(json: %s))
+                to: KernelCommunicator.ParentMessage(json: %s))
         """ % json.dumps(json.dumps(squash_dates(self._parent_header))))
         if isinstance(result, ExecutionResultError):
             self.log.error(result.description_and_stdout())

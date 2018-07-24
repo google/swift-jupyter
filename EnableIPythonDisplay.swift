@@ -18,53 +18,60 @@
 import Python
 
 // Workaround SR-7757.
-#if os(macOS) || os(iOS) || os(watchOS) || os(tvOS)
+#if canImport(Darwin)
 import func Darwin.C.dlopen
-#else
+#elseif canImport(Glibc)
 import func Glibc.dlopen
+#else
+#error("Cannot import Darwin or Glibc!")
 #endif
 dlopen("libpython2.7.so", RTLD_NOW | RTLD_GLOBAL)
 
 enum IPythonDisplay {
   static var socket: PythonObject = Python.None
   static var shell: PythonObject = Python.None
-}
 
-func enableIPythonDisplay() {
-  let json = Python.import("json")
+  static func enableIPythonDisplay() {
+    if IPythonDisplay.shell != Python.None {
+      print("Warning: IPython display already enabled.")
+      return
+    }
 
-  let swift_shell = Python.import("swift_shell")
-  let socketAndShell = swift_shell.create_shell(
-    username: JupyterKernel.communicator.jupyterSession.username,
-    session_id: JupyterKernel.communicator.jupyterSession.id,
-    key: JupyterKernel.communicator.jupyterSession.key)
-  IPythonDisplay.socket = socketAndShell[0]
-  IPythonDisplay.shell = socketAndShell[1]
+    let json = Python.import("json")
 
-  func updateParentMessage(to parentMessage: ParentMessage) {
-    IPythonDisplay.shell.set_parent(json.loads(parentMessage.json))
-  }
-  JupyterKernel.communicator.handleParentMessage(updateParentMessage)
+    let swift_shell = Python.import("swift_shell")
+    let socketAndShell = swift_shell.create_shell(
+      username: JupyterKernel.communicator.jupyterSession.username,
+      session_id: JupyterKernel.communicator.jupyterSession.id,
+      key: JupyterKernel.communicator.jupyterSession.key)
+    IPythonDisplay.socket = socketAndShell[0]
+    IPythonDisplay.shell = socketAndShell[1]
 
-  func consumeDisplayMessages() -> [JupyterDisplayMessage] {
-    func bytes(_ py: PythonObject) -> [CChar] {
-      // faster not-yet-introduced method
-      // return py.swiftBytes!
+    func updateParentMessage(to parentMessage: KernelCommunicator.ParentMessage) {
+      IPythonDisplay.shell.set_parent(json.loads(parentMessage.json))
+    }
+    JupyterKernel.communicator.handleParentMessage(updateParentMessage)
 
-      // slow placeholder implementation
-      return py.map { el in
-        return CChar(bitPattern: UInt8(Python.ord(el))!)
+    func consumeDisplayMessages() -> [KernelCommunicator.JupyterDisplayMessage] {
+      func bytes(_ py: PythonObject) -> [CChar] {
+        // faster not-yet-introduced method
+        // return py.swiftBytes!
+
+        // slow placeholder implementation
+        return py.map { el in
+          return CChar(bitPattern: UInt8(Python.ord(el))!)
+        }
       }
-    }
 
-    let displayMessages = IPythonDisplay.socket.messages.map {
-      JupyterDisplayMessage(parts: $0.map { bytes($0) })
+      let displayMessages = IPythonDisplay.socket.messages.map {
+        KernelCommunicator.JupyterDisplayMessage(parts: $0.map { bytes($0) })
+      }
+      IPythonDisplay.socket.messages = []
+      return displayMessages
     }
-    IPythonDisplay.socket.messages = []
-    return displayMessages
+    JupyterKernel.communicator.afterSuccessfulExecution(
+      run: consumeDisplayMessages)
   }
-  JupyterKernel.communicator.afterSuccessfulExecution(
-    run: consumeDisplayMessages)
 }
 
-enableIPythonDisplay()
+IPythonDisplay.enableIPythonDisplay()
