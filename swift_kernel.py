@@ -23,6 +23,7 @@ import os
 import re
 
 from ipykernel.kernelbase import Kernel
+from jupyter_client.jsonutil import squash_dates
 
 
 class Completer:
@@ -153,6 +154,9 @@ class ExecutionResultError(ExecutionResult):
     def description(self):
         raise NotImplementedError()
 
+    def description_and_stdout(self):
+        raise NotImplementedError()
+
 
 class SuccessWithoutValue(ExecutionResultSuccess):
     """The code executed successfully, and did not produce a value."""
@@ -175,6 +179,9 @@ class PreprocessorError(ExecutionResultError):
     def description(self):
         return str(self.exception)
 
+    def description_and_stdout(self):
+        return self.description()
+
 
 class PreprocessorException(Exception):
     pass
@@ -188,6 +195,10 @@ class SwiftError(ExecutionResultError):
 
     def description(self):
         return self.result.error.description
+
+    def description_and_stdout(self):
+        return 'message:\n%s\n\nstdout:\n%s' % (self.result.error.description,
+                                                self.stdout)
 
 
 class SwiftKernel(Kernel):
@@ -205,6 +216,7 @@ class SwiftKernel(Kernel):
         super(SwiftKernel, self).__init__(**kwargs)
         self._init_repl_process()
         self._init_completer()
+        self._init_kernel_communicator()
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
@@ -228,7 +240,10 @@ class SwiftKernel(Kernel):
         if not self.main_bp:
             raise Exception('Could not set breakpoint')
 
-        self.process = self.target.LaunchSimple(None, None, os.getcwd())
+        script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+        self.process = self.target.LaunchSimple(None,
+                                                ['PYTHONPATH=%s' % script_dir],
+                                                os.getcwd())
         if not self.process:
             raise Exception('Could not launch process')
 
@@ -254,6 +269,22 @@ class SwiftKernel(Kernel):
               if key in os.environ
           },
           self.log)
+
+    def _init_kernel_communicator(self):
+        result = self._preprocess_and_execute(
+                '%include "KernelCommunicator.swift"')
+        if isinstance(result, ExecutionResultError):
+            self.log.error(result.description_and_stdout())
+
+        decl_code = """
+            var _kernelCommunicator = KernelCommunicator(
+                juptyerSession: JuptyerSession(id: %s, key: %s,
+                                               username: %s))
+        """ % (json.dumps(self.session.session), json.dumps(self.session.key),
+               json.dumps(self.session.username))
+        result = self._preprocess_and_execute(decl_code)
+        if isinstance(result, ExecutionResultError):
+            self.log.error(result.description_and_stdout())
 
     def _preprocess_and_execute(self, code):
         try:
@@ -313,8 +344,10 @@ class SwiftKernel(Kernel):
         stdout = ''.join([buf for buf in self._get_stdout()])
 
         if result.error.type == lldb.eErrorTypeInvalid:
+            self.completer.record_successful_execution(code)
             return SuccessWithValue(stdout, result)
         elif result.error.type == lldb.eErrorTypeGeneric:
+            self.completer.record_successful_execution(code)
             return SuccessWithoutValue(stdout)
         else:
             return SwiftError(stdout, result)
@@ -327,9 +360,58 @@ class SwiftKernel(Kernel):
                 break
             yield stdout_buffer
 
+    def _after_successful_execution(self):
+        result = self._execute(
+                '_kernelCommunicator.triggerAfterSuccessfulExecution()')
+        if isinstance(result, ExecutionResultError):
+            self.log.error(result.description_and_stdout())
+            return
+        if isinstance(result, SuccessWithoutValue):
+            self.log.error(
+                    'Exepcted value from triggerAfterSuccessfulExecution()')
+            return
+
+        messages = self._read_jupyter_messages(result.result)
+        self._send_juptyer_messages(messages)
+
+    def _read_jupyter_messages(self, sbvalue):
+        return {
+            'display_messages': [
+                self._read_display_message(display_message_sbvalue)
+                for display_message_sbvalue
+                in sbvalue.GetChildMemberWithName('displayMessages')
+            ]
+        }
+
+    def _read_display_message(self, sbvalue):
+        parts_sbvalue = sbvalue.GetChildMemberWithName('parts')
+        return [self._read_byte_array(part) for part in parts_sbvalue]
+
+    def _read_byte_array(self, sbvalue):
+        # TODO: Iterating over the bytes in Python is very slow.
+        return bytes(bytearray(
+                [byte_sbvalue.data.uint8[0] for byte_sbvalue in sbvalue]))
+
+    def _send_juptyer_messages(self, messages):
+        for display_message in messages['display_messages']:
+            self.iopub_socket.send_multipart(display_message)
+
+    def _set_parent_message(self):
+        result = self._execute("""
+            _kernelCommunicator.setParentMessage(to: ParentMessage(json: %s))
+        """ % json.dumps(json.dumps(squash_dates(self._parent_header))))
+        if isinstance(result, ExecutionResultError):
+            self.log.error(result.description_and_stdout())
+            return
+
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
+        self._set_parent_message()
+
         result = self._preprocess_and_execute(code)
+
+        if isinstance(result, ExecutionResultSuccess):
+            self._after_successful_execution()
 
         # Send stdout to client.
         try:
