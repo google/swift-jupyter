@@ -25,26 +25,26 @@ import func Glibc.dlopen
 #endif
 dlopen("libpython2.7.so", RTLD_NOW | RTLD_GLOBAL)
 
-/// The underscore marks these as "system-defined" variables that the user
-/// shouldn't redeclare.
-var _socket: PythonObject = Python.None
-var _shell: PythonObject = Python.None
+enum IPythonDisplay {
+  static var socket: PythonObject = Python.None
+  static var shell: PythonObject = Python.None
+}
 
 func enableIPythonDisplay() {
   let json = Python.import("json")
 
   let swift_shell = Python.import("swift_shell")
   let socketAndShell = swift_shell.create_shell(
-    username: _kernelCommunicator.jupyterSession.username,
-    session_id: _kernelCommunicator.jupyterSession.id,
-    key: _kernelCommunicator.jupyterSession.key)
-  _socket = socketAndShell[0]
-  _shell = socketAndShell[1]
+    username: JupyterKernel.communicator.jupyterSession.username,
+    session_id: JupyterKernel.communicator.jupyterSession.id,
+    key: JupyterKernel.communicator.jupyterSession.key)
+  IPythonDisplay.socket = socketAndShell[0]
+  IPythonDisplay.shell = socketAndShell[1]
 
   func updateParentMessage(to parentMessage: ParentMessage) {
-    _shell.set_parent(json.loads(parentMessage.json))
+    IPythonDisplay.shell.set_parent(json.loads(parentMessage.json))
   }
-  _kernelCommunicator.handleParentMessage(updateParentMessage)
+  JupyterKernel.communicator.handleParentMessage(updateParentMessage)
 
   func consumeDisplayMessages() -> [JupyterDisplayMessage] {
     func bytes(_ py: PythonObject) -> [CChar] {
@@ -57,13 +57,14 @@ func enableIPythonDisplay() {
       }
     }
 
-    let displayMessages = _socket.messages.map {
+    let displayMessages = IPythonDisplay.socket.messages.map {
       JupyterDisplayMessage(parts: $0.map { bytes($0) })
     }
-    _socket.messages = []
+    IPythonDisplay.socket.messages = []
     return displayMessages
   }
-  _kernelCommunicator.afterSuccessfulExecution(run: consumeDisplayMessages)
+  JupyterKernel.communicator.afterSuccessfulExecution(
+    run: consumeDisplayMessages)
 }
 
 enableIPythonDisplay()

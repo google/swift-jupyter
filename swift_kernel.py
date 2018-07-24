@@ -276,12 +276,12 @@ class SwiftKernel(Kernel):
         if isinstance(result, ExecutionResultError):
             self.log.error(result.description_and_stdout())
 
-        # The underscore marks this as a "system-defined" variable that the
-        # user shouldn't redeclare.
         decl_code = """
-            var _kernelCommunicator = KernelCommunicator(
-                jupyterSession: JupyterSession(id: %s, key: %s,
-                                               username: %s))
+            enum JupyterKernel {
+                static var communicator = KernelCommunicator(
+                    jupyterSession: JupyterSession(id: %s, key: %s,
+                                                   username: %s))
+            }
         """ % (json.dumps(self.session.session), json.dumps(self.session.key),
                json.dumps(self.session.username))
         result = self._preprocess_and_execute(decl_code)
@@ -364,7 +364,7 @@ class SwiftKernel(Kernel):
 
     def _after_successful_execution(self):
         result = self._execute(
-                '_kernelCommunicator.triggerAfterSuccessfulExecution()')
+                'JupyterKernel.communicator.triggerAfterSuccessfulExecution()')
         if isinstance(result, ExecutionResultError):
             self.log.error(result.description_and_stdout())
             return
@@ -400,7 +400,8 @@ class SwiftKernel(Kernel):
 
     def _set_parent_message(self):
         result = self._execute("""
-            _kernelCommunicator.updateParentMessage(to: ParentMessage(json: %s))
+            JupyterKernel.communicator.updateParentMessage(
+                to: ParentMessage(json: %s))
         """ % json.dumps(json.dumps(squash_dates(self._parent_header))))
         if isinstance(result, ExecutionResultError):
             self.log.error(result.description_and_stdout())
