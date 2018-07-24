@@ -31,13 +31,39 @@ enum IPythonDisplay {
   static var socket: PythonObject = Python.None
   static var shell: PythonObject = Python.None
 
-  static func enableIPythonDisplay() {
+}
+
+extension IPythonDisplay {
+  private static func bytes(_ py: PythonObject) -> [CChar] {
+    // faster not-yet-introduced method
+    // return py.swiftBytes!
+
+    // slow placeholder implementation
+    return py.map { el in
+      return CChar(bitPattern: UInt8(Python.ord(el))!)
+    }
+  }
+
+  private static func updateParentMessage(
+      to parentMessage: KernelCommunicator.ParentMessage) {
+    let json = Python.import("json")
+    IPythonDisplay.shell.set_parent(json.loads(parentMessage.json))
+  }
+
+  private static func consumeDisplayMessages()
+      -> [KernelCommunicator.JupyterDisplayMessage] {
+    let displayMessages = IPythonDisplay.socket.messages.map {
+      KernelCommunicator.JupyterDisplayMessage(parts: $0.map { bytes($0) })
+    }
+    IPythonDisplay.socket.messages = []
+    return displayMessages
+  }
+
+  static func enable() {
     if IPythonDisplay.shell != Python.None {
       print("Warning: IPython display already enabled.")
       return
     }
-
-    let json = Python.import("json")
 
     let swift_shell = Python.import("swift_shell")
     let socketAndShell = swift_shell.create_shell(
@@ -47,31 +73,10 @@ enum IPythonDisplay {
     IPythonDisplay.socket = socketAndShell[0]
     IPythonDisplay.shell = socketAndShell[1]
 
-    func updateParentMessage(to parentMessage: KernelCommunicator.ParentMessage) {
-      IPythonDisplay.shell.set_parent(json.loads(parentMessage.json))
-    }
     JupyterKernel.communicator.handleParentMessage(updateParentMessage)
-
-    func consumeDisplayMessages() -> [KernelCommunicator.JupyterDisplayMessage] {
-      func bytes(_ py: PythonObject) -> [CChar] {
-        // faster not-yet-introduced method
-        // return py.swiftBytes!
-
-        // slow placeholder implementation
-        return py.map { el in
-          return CChar(bitPattern: UInt8(Python.ord(el))!)
-        }
-      }
-
-      let displayMessages = IPythonDisplay.socket.messages.map {
-        KernelCommunicator.JupyterDisplayMessage(parts: $0.map { bytes($0) })
-      }
-      IPythonDisplay.socket.messages = []
-      return displayMessages
-    }
     JupyterKernel.communicator.afterSuccessfulExecution(
       run: consumeDisplayMessages)
   }
 }
 
-IPythonDisplay.enableIPythonDisplay()
+IPythonDisplay.enable()
