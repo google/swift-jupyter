@@ -56,7 +56,7 @@ be able to display rich output! For example:
 ```swift
 let np = Python.import("numpy")
 let plt = Python.import("matplotlib.pyplot")
-_shell.enable_matplotlib("inline")
+IPythonDisplay.shell.enable_matplotlib("inline")
 ```
 
 ```swift

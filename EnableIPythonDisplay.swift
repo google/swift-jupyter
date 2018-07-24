@@ -52,7 +52,7 @@ func enableIPythonDisplay() {
       // return py.swiftBytes!
 
       // slow placeholder implementation
-      return py.map { (el) in
+      return py.map { el in
         return CChar(bitPattern: UInt8(Python.ord(el))!)
       }
     }
