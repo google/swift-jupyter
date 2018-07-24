@@ -25,6 +25,9 @@ public struct KernelCommunicator {
 
   public let jupyterSession: JupyterSession
 
+  /// Owns the JupyterDisplayMessages' memory.
+  private var previousDisplayMessages: [JupyterDisplayMessage] = []
+
   init(jupyterSession: JupyterSession) {
     self.afterSuccessfulExecutionHandlers = []
     self.parentMessageHandlers = []
@@ -33,7 +36,8 @@ public struct KernelCommunicator {
 
   /// Register a handler to run after the kernel successfully executes a cell
   /// of user code. The handler may return messages. These messages will be
-  /// send to the Jupyter client.
+  /// sent to the Jupyter client. The KernelCommunicator takes ownership of
+  /// the messages' memory.
   public mutating func afterSuccessfulExecution(
       run handler: @escaping () -> [JupyterDisplayMessage]) {
     afterSuccessfulExecutionHandlers.append(handler)
@@ -46,8 +50,15 @@ public struct KernelCommunicator {
   }
 
   /// The kernel calls this after successfully executing a cell of user code.
-  public func triggerAfterSuccessfulExecution() -> [JupyterDisplayMessage] {
-    return afterSuccessfulExecutionHandlers.flatMap { $0() }
+  ///
+  /// Caller does not own the result. The resulting JupyterDisplayMessages
+  /// refer to valid memory until the next time this method is called.
+  public mutating func triggerAfterSuccessfulExecution() -> [JupyterDisplayMessage] {
+    for previousDisplayMessage in previousDisplayMessages {
+      previousDisplayMessage.deinitialize()
+    }
+    previousDisplayMessages = afterSuccessfulExecutionHandlers.flatMap { $0() }
+    return previousDisplayMessages
   }
 
   /// The kernel calls this when the parent message changes.
@@ -59,8 +70,36 @@ public struct KernelCommunicator {
   }
 
   /// A single serialized display message for the Jupyter client.
+  ///
+  /// Refers to unmanaged memory so that the kernel can read the messages
+  /// directly from memory.
+  ///
+  /// Clients must call `deinitialize()` after they are finished with this
+  /// struct. The memory that this refers to becomes invalid when
+  /// `deinitialize()` is called.
+  ///
+  /// TODO: We could make this a class and take advantage of Swift's reference
+  //  counting. But there are some obstacles to overcome first:
+  /// 1. It seems that LLDB never releases values that it has references to.
+  ///    So we need to fix that to avoid leaking memory.
+  /// 2. When I make this a class, LLDB can't read the contents of `parts`.
+  ///    LLDB says "<read memory from {ADDRESS} failed (0 of 8 bytes read)>".
   public struct JupyterDisplayMessage {
-    public let parts: [[CChar]]
+    let parts: [UnsafeMutableBufferPointer<CChar>]
+
+    init(parts: [[CChar]]) {
+      self.parts = parts.map {
+        let part = UnsafeMutableBufferPointer<CChar>.allocate(capacity: $0.count)
+        part.initialize(from: $0)
+        return part
+      }
+    }
+
+    func deinitialize() {
+      for part in parts {
+        part.deallocate()
+      }
+    }
   }
 
   /// ParentMessage identifies the request that causes things to happen.
