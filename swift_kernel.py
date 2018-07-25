@@ -393,8 +393,7 @@ class SwiftKernel(Kernel):
         }
 
     def _read_display_message(self, sbvalue):
-        parts_sbvalue = sbvalue.GetChildMemberWithName('parts')
-        return [self._read_byte_array(part) for part in parts_sbvalue]
+        return [self._read_byte_array(part) for part in sbvalue]
 
     def _read_byte_array(self, sbvalue):
         get_position_error = lldb.SBError()

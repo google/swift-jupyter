@@ -25,7 +25,6 @@ public struct KernelCommunicator {
 
   public let jupyterSession: JupyterSession
 
-  /// Owns the JupyterDisplayMessages' memory.
   private var previousDisplayMessages: [JupyterDisplayMessage] = []
 
   init(jupyterSession: JupyterSession) {
@@ -36,8 +35,7 @@ public struct KernelCommunicator {
 
   /// Register a handler to run after the kernel successfully executes a cell
   /// of user code. The handler may return messages. These messages will be
-  /// sent to the Jupyter client. The KernelCommunicator takes ownership of
-  /// the messages' memory.
+  /// sent to the Jupyter client.
   public mutating func afterSuccessfulExecution(
       run handler: @escaping () -> [JupyterDisplayMessage]) {
     afterSuccessfulExecutionHandlers.append(handler)
@@ -50,15 +48,15 @@ public struct KernelCommunicator {
   }
 
   /// The kernel calls this after successfully executing a cell of user code.
-  ///
-  /// Caller does not own the result. The resulting JupyterDisplayMessages
-  /// refer to valid memory until the next time this method is called.
-  public mutating func triggerAfterSuccessfulExecution() -> [JupyterDisplayMessage] {
-    for previousDisplayMessage in previousDisplayMessages {
-      previousDisplayMessage.deinitialize()
-    }
+  /// Returns an array of messages, where each message is returned as an array
+  /// of parts, where each part is returned as an `UnsafeBufferPointer<CChar>`
+  /// to the memory containing the part's bytes.
+  public mutating func triggerAfterSuccessfulExecution()
+      -> [[UnsafeBufferPointer<CChar>]] {
+    // Keep a reference to the messages, so that their `.unsafeBufferPointer`
+    // stays valid while the kernel is reading from them.
     previousDisplayMessages = afterSuccessfulExecutionHandlers.flatMap { $0() }
-    return previousDisplayMessages
+    return previousDisplayMessages.map { $0.parts.map { $0.unsafeBufferPointer } }
   }
 
   /// The kernel calls this when the parent message changes.
@@ -70,35 +68,37 @@ public struct KernelCommunicator {
   }
 
   /// A single serialized display message for the Jupyter client.
-  ///
-  /// Refers to unmanaged memory so that the kernel can read the messages
-  /// directly from memory.
-  ///
-  /// Clients must call `deinitialize()` after they are finished with this
-  /// struct. The memory that this refers to becomes invalid when
-  /// `deinitialize()` is called.
-  ///
-  /// TODO: We could make this a class and take advantage of Swift's reference
-  //  counting. But there are some obstacles to overcome first:
-  /// 1. It seems that LLDB never releases values that it has references to.
-  ///    So we need to fix that to avoid leaking memory.
-  /// 2. When I make this a class, LLDB can't read the contents of `parts`.
-  ///    LLDB says "<read memory from {ADDRESS} failed (0 of 8 bytes read)>".
+  /// Corresponds to a ZeroMQ "multipart message".
   public struct JupyterDisplayMessage {
-    let parts: [UnsafeMutableBufferPointer<CChar>]
+    let parts: [BytesReference]
+  }
 
-    init(parts: [[CChar]]) {
-      self.parts = parts.map {
-        let part = UnsafeMutableBufferPointer<CChar>.allocate(capacity: $0.count)
-        part.initialize(from: $0)
-        return part
-      }
+  /// A reference to memory containing bytes.
+  ///
+  /// As long as there is a strong reference to an instance, that instance's
+  /// `unsafeBufferPointer` refers to memory containing the bytes passed to
+  /// that instance's constructor.
+  ///
+  /// We use this so that we can give the kernel a memory location that it can
+  /// read bytes from.
+  public class BytesReference {
+    private var bytes: ContiguousArray<CChar>
+
+    init<S: Sequence>(_ bytes: S) where S.Element == CChar {
+      // Construct our own array and copy `bytes` into it, so that no one
+      // else aliases the underlying memory.
+      self.bytes = []
+      self.bytes.append(contentsOf: bytes)
     }
 
-    func deinitialize() {
-      for part in parts {
-        part.deallocate()
-      }
+    public var unsafeBufferPointer: UnsafeBufferPointer<CChar> {
+      // We have tried very hard to make the pointer stay valid outside the
+      // closure:
+      // - No one else aliases the underlying memory.
+      // - The comment on this class reminds users that the memory may become
+      //   invalid after all references to the BytesReference instance are
+      //   released.
+      return bytes.withUnsafeBufferPointer { $0 }
     }
   }
 
