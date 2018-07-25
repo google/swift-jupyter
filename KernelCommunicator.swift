@@ -42,8 +42,7 @@ public struct KernelCommunicator {
   }
 
   /// Register a handler to run when the parent message changes.
-  public mutating func handleParentMessage(
-      _ handler: @escaping (ParentMessage) -> ()) {
+  public mutating func handleParentMessage(_ handler: @escaping (ParentMessage) -> ()) {
     parentMessageHandlers.append(handler)
   }
 
@@ -51,8 +50,7 @@ public struct KernelCommunicator {
   /// Returns an array of messages, where each message is returned as an array
   /// of parts, where each part is returned as an `UnsafeBufferPointer<CChar>`
   /// to the memory containing the part's bytes.
-  public mutating func triggerAfterSuccessfulExecution()
-      -> [[UnsafeBufferPointer<CChar>]] {
+  public mutating func triggerAfterSuccessfulExecution() -> [[UnsafeBufferPointer<CChar>]] {
     // Keep a reference to the messages, so that their `.unsafeBufferPointer`
     // stays valid while the kernel is reading from them.
     previousDisplayMessages = afterSuccessfulExecutionHandlers.flatMap { $0() }
@@ -60,8 +58,7 @@ public struct KernelCommunicator {
   }
 
   /// The kernel calls this when the parent message changes.
-  public mutating func updateParentMessage(
-      to parentMessage: ParentMessage) {
+  public mutating func updateParentMessage(to parentMessage: ParentMessage) {
     for parentMessageHandler in parentMessageHandlers {
       parentMessageHandler(parentMessage)
     }
