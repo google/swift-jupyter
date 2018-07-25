@@ -41,7 +41,7 @@ extension IPythonDisplay {
     return KernelCommunicator.BytesReference(bytes)
   }
 
-  private static func updateParentMessage( to parentMessage: KernelCommunicator.ParentMessage) {
+  private static func updateParentMessage(to parentMessage: KernelCommunicator.ParentMessage) {
     let json = Python.import("json")
     IPythonDisplay.shell.set_parent(json.loads(parentMessage.json))
   }
