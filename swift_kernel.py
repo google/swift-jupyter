@@ -217,6 +217,7 @@ class SwiftKernel(Kernel):
         self._init_repl_process()
         self._init_completer()
         self._init_kernel_communicator()
+        self._init_int_bitwidth()
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
@@ -287,6 +288,12 @@ class SwiftKernel(Kernel):
         result = self._preprocess_and_execute(decl_code)
         if isinstance(result, ExecutionResultError):
             self.log.error(result.description_and_stdout())
+
+    def _init_int_bitwidth(self):
+        result = self._execute('Int.bitWidth')
+        if isinstance(result, ExecutionResultError):
+            self.log.error(result.description_and_stdout())
+        self._int_bitwidth = int(result.result.description)
 
     def _preprocess_and_execute(self, code):
         try:
@@ -386,13 +393,37 @@ class SwiftKernel(Kernel):
         }
 
     def _read_display_message(self, sbvalue):
-        parts_sbvalue = sbvalue.GetChildMemberWithName('parts')
-        return [self._read_byte_array(part) for part in parts_sbvalue]
+        return [self._read_byte_array(part) for part in sbvalue]
 
     def _read_byte_array(self, sbvalue):
-        # TODO: Iterating over the bytes in Python is very slow.
-        return bytes(bytearray(
-                [byte_sbvalue.data.uint8[0] for byte_sbvalue in sbvalue]))
+        get_position_error = lldb.SBError()
+        position = sbvalue \
+                .GetChildMemberWithName('_position') \
+                .GetData() \
+                .GetAddress(get_position_error, 0)
+        if get_position_error.Fail():
+            raise Exception('getting position: %s' % str(get_position_error))
+
+        get_count_error = lldb.SBError()
+        count_data = sbvalue \
+                .GetChildMemberWithName('count') \
+                .GetData()
+        if self._int_bitwidth == 32:
+            count = count_data.GetSignedInt32(get_count_error, 0)
+        elif self._int_bitwidth == 64:
+            count = count_data.GetSignedInt64(get_count_error, 0)
+        else:
+            raise Exception('Unsupported integer bitwidth %d' %
+                            self._int_bitwidth)
+        if get_count_error.Fail():
+            raise Exception('getting count: %s' % str(get_count_error))
+
+        get_data_error = lldb.SBError()
+        data = self.process.ReadMemory(position, count, get_data_error)
+        if get_data_error.Fail():
+            raise Exception('getting data: %s' % str(get_data_error))
+
+        return data
 
     def _send_jupyter_messages(self, messages):
         for display_message in messages['display_messages']:

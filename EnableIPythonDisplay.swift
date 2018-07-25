@@ -34,24 +34,19 @@ enum IPythonDisplay {
 }
 
 extension IPythonDisplay {
-  private static func bytes(_ py: PythonObject) -> [CChar] {
-    // faster not-yet-introduced method
-    // return py.swiftBytes!
-
-    // slow placeholder implementation
-    return py.map { el in
-      return CChar(bitPattern: UInt8(Python.ord(el))!)
-    }
+  private static func bytes(_ py: PythonObject) -> KernelCommunicator.BytesReference {
+    // TODO: Replace with a faster implementation that reads bytes directly
+    // from the python object's memory.
+    let bytes = py.lazy.map { CChar(bitPattern: UInt8(Python.ord($0))!) }
+    return KernelCommunicator.BytesReference(bytes)
   }
 
-  private static func updateParentMessage(
-      to parentMessage: KernelCommunicator.ParentMessage) {
+  private static func updateParentMessage( to parentMessage: KernelCommunicator.ParentMessage) {
     let json = Python.import("json")
     IPythonDisplay.shell.set_parent(json.loads(parentMessage.json))
   }
 
-  private static func consumeDisplayMessages()
-      -> [KernelCommunicator.JupyterDisplayMessage] {
+  private static func consumeDisplayMessages() -> [KernelCommunicator.JupyterDisplayMessage] {
     let displayMessages = IPythonDisplay.socket.messages.map {
       KernelCommunicator.JupyterDisplayMessage(parts: $0.map { bytes($0) })
     }
@@ -74,8 +69,7 @@ extension IPythonDisplay {
     IPythonDisplay.shell = socketAndShell[1]
 
     JupyterKernel.communicator.handleParentMessage(updateParentMessage)
-    JupyterKernel.communicator.afterSuccessfulExecution(
-      run: consumeDisplayMessages)
+    JupyterKernel.communicator.afterSuccessfulExecution(run: consumeDisplayMessages)
   }
 }
 

@@ -25,6 +25,8 @@ public struct KernelCommunicator {
 
   public let jupyterSession: JupyterSession
 
+  private var previousDisplayMessages: [JupyterDisplayMessage] = []
+
   init(jupyterSession: JupyterSession) {
     self.afterSuccessfulExecutionHandlers = []
     self.parentMessageHandlers = []
@@ -33,34 +35,68 @@ public struct KernelCommunicator {
 
   /// Register a handler to run after the kernel successfully executes a cell
   /// of user code. The handler may return messages. These messages will be
-  /// send to the Jupyter client.
+  /// sent to the Jupyter client.
   public mutating func afterSuccessfulExecution(
       run handler: @escaping () -> [JupyterDisplayMessage]) {
     afterSuccessfulExecutionHandlers.append(handler)
   }
 
   /// Register a handler to run when the parent message changes.
-  public mutating func handleParentMessage(
-      _ handler: @escaping (ParentMessage) -> ()) {
+  public mutating func handleParentMessage(_ handler: @escaping (ParentMessage) -> ()) {
     parentMessageHandlers.append(handler)
   }
 
   /// The kernel calls this after successfully executing a cell of user code.
-  public func triggerAfterSuccessfulExecution() -> [JupyterDisplayMessage] {
-    return afterSuccessfulExecutionHandlers.flatMap { $0() }
+  /// Returns an array of messages, where each message is returned as an array
+  /// of parts, where each part is returned as an `UnsafeBufferPointer<CChar>`
+  /// to the memory containing the part's bytes.
+  public mutating func triggerAfterSuccessfulExecution() -> [[UnsafeBufferPointer<CChar>]] {
+    // Keep a reference to the messages, so that their `.unsafeBufferPointer`
+    // stays valid while the kernel is reading from them.
+    previousDisplayMessages = afterSuccessfulExecutionHandlers.flatMap { $0() }
+    return previousDisplayMessages.map { $0.parts.map { $0.unsafeBufferPointer } }
   }
 
   /// The kernel calls this when the parent message changes.
-  public mutating func updateParentMessage(
-      to parentMessage: ParentMessage) {
+  public mutating func updateParentMessage(to parentMessage: ParentMessage) {
     for parentMessageHandler in parentMessageHandlers {
       parentMessageHandler(parentMessage)
     }
   }
 
   /// A single serialized display message for the Jupyter client.
+  /// Corresponds to a ZeroMQ "multipart message".
   public struct JupyterDisplayMessage {
-    public let parts: [[CChar]]
+    let parts: [BytesReference]
+  }
+
+  /// A reference to memory containing bytes.
+  ///
+  /// As long as there is a strong reference to an instance, that instance's
+  /// `unsafeBufferPointer` refers to memory containing the bytes passed to
+  /// that instance's constructor.
+  ///
+  /// We use this so that we can give the kernel a memory location that it can
+  /// read bytes from.
+  public class BytesReference {
+    private var bytes: ContiguousArray<CChar>
+
+    init<S: Sequence>(_ bytes: S) where S.Element == CChar {
+      // Construct our own array and copy `bytes` into it, so that no one
+      // else aliases the underlying memory.
+      self.bytes = []
+      self.bytes.append(contentsOf: bytes)
+    }
+
+    public var unsafeBufferPointer: UnsafeBufferPointer<CChar> {
+      // We have tried very hard to make the pointer stay valid outside the
+      // closure:
+      // - No one else aliases the underlying memory.
+      // - The comment on this class reminds users that the memory may become
+      //   invalid after all references to the BytesReference instance are
+      //   released.
+      return bytes.withUnsafeBufferPointer { $0 }
+    }
   }
 
   /// ParentMessage identifies the request that causes things to happen.
