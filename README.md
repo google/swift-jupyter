@@ -1,7 +1,7 @@
 # Swift-Jupyter
 
 This is a Jupyter Kernel for Swift, intended to make it possible to use Jupyter
-with the [Swift for Tensorflow](https://github.com/tensorflow/swift) project.
+with the [Swift for TensorFlow](https://github.com/tensorflow/swift) project.
 
 This kernel is currently very barebones and experimental.
 
@@ -16,9 +16,9 @@ virtualenv venv
 pip2 install jupyter # Must use python2, because LLDB doesn't support python3.
 ```
 
-Install a Swift toolchain. For example, install the [Swift for Tensorflow] toolchain.
+Install a Swift toolchain. For example, install the [Swift for TensorFlow] toolchain.
 
-[Swift for Tensorflow]: https://github.com/tensorflow/swift/blob/master/Installation.md
+[Swift for TensorFlow]: https://github.com/tensorflow/swift/blob/master/Installation.md
 
 Optionally [install SourceKitten](https://github.com/jpsim/SourceKitten) (this enables code completion).
 
@@ -41,7 +41,7 @@ libraries the produce rich output too!)
 Prerequisites:
 
 * You must use a Swift toolchain that has Python interop. As of July 2018,
-  only the [Swift for Tensorflow] toolchain has Python interop.
+  only the [Swift for TensorFlow] toolchain has Python interop.
 
 * Install the `ipykernel` Python library, and any other Python libraries
   that you want output from (such as `matplotlib` or `pandas`) on your
