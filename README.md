@@ -51,7 +51,7 @@ Now run `jupyter notebook`, and it should have a Swift kernel.
 
 You can call Python libaries using [Swift's Python interop] to display rich
 output in your Swift notebooks. (Eventually, we'd like to support Swift
-libraries the produce rich output too!)
+libraries that produce rich output too!)
 
 Prerequisites:
 
