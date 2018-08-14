@@ -16,17 +16,32 @@ virtualenv venv
 pip2 install jupyter # Must use python2, because LLDB doesn't support python3.
 ```
 
-Install a Swift toolchain. For example, install the [Swift for TensorFlow] toolchain.
+Optionally [install SourceKitten](https://github.com/jpsim/SourceKitten) (this enables code
+completion).
 
-[Swift for TensorFlow]: https://github.com/tensorflow/swift/blob/master/Installation.md
+Get a Swift toolchain. Here are a few options:
 
-Optionally [install SourceKitten](https://github.com/jpsim/SourceKitten) (this enables code completion).
+* [Download a prebuilt Swift for TensorFlow toolchain](https://github.com/tensorflow/swift/blob/master/Installation.md).
+* [Download Swift for TensorFlow sources](https://github.com/apple/swift/blob/tensorflow/README.md)
+  and then build a toolchain using
+  - `SWIFT_PACKAGE=tensorflow_linux,no_test ./swift/utils/build-toolchain local.swift` or
+  - `SWIFT_PACKAGE=tensorflow_osx,no_test ./swift/utils/build-toolchain local.swift`.
+* Use an XCode Swift toolchain.
 
-Register the kernel with jupyter.
+Register the kernel with jupyter. The command depends on which toolchain you got:
 ```
-python2 register.py --sys-prefix --swift-toolchain <path to swift toolchain> --sourcekitten <path to sourcekitten binary>
+# If you downloaded a prebuilt toolchain:
+python2 register.py --sys-prefix --swift-toolchain <path to extracted swift toolchain directory>
+
+# If you built a toolchain from sources:
+python2 register.py --sys-prefix --swift-toolchain <path to "swift-nightly-install" directory>
+
+# If you are using an XCode toolchain:
+python2 register.py --sys-prefix --xcode-path <path to XCode Swift toolchain>
 ```
-(omit the `--sourcekitten <path to sourcekitten binary>` if you did not install SourceKitten.)
+
+Optionally add `--sourcekitten <path to sourcekitten binary>` to the command if you installed
+SourceKitten. This will give you code completion.
 
 Now run `jupyter notebook`, and it should have a Swift kernel.
 
