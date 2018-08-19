@@ -10,6 +10,7 @@ This kernel is implemented using LLDB's Python APIs.
 # Installation Instructions
 
 Create a virtualenv and install jupyter in it.
+
 ```
 virtualenv venv
 . venv/bin/activate
@@ -26,18 +27,18 @@ Get a Swift toolchain. Here are a few options:
   and then build a toolchain using
   - `SWIFT_PACKAGE=tensorflow_linux,no_test ./swift/utils/build-toolchain local.swift` or
   - `SWIFT_PACKAGE=tensorflow_osx,no_test ./swift/utils/build-toolchain local.swift`.
-* Use an XCode Swift toolchain.
+* Use an Xcode Swift toolchain.
 
 Register the kernel with jupyter. The command depends on which toolchain you got:
 ```
 # If you downloaded a prebuilt toolchain:
-python2 register.py --sys-prefix --swift-toolchain <path to extracted swift toolchain directory>
+python register.py --sys-prefix --swift-toolchain <path to extracted swift toolchain directory>
 
 # If you built a toolchain from sources:
-python2 register.py --sys-prefix --swift-toolchain <path to "swift-nightly-install" directory>
+python register.py --sys-prefix --swift-toolchain <path to "swift-nightly-install" directory>
 
-# If you are using an XCode toolchain:
-python2 register.py --sys-prefix --xcode-path <path to XCode Swift toolchain>
+# If you are using an Xcode provided toolchain:
+python register.py --sys-prefix --xcode-path <path to the Xcode app bundle>
 ```
 
 Optionally add `--sourcekitten <path to sourcekitten binary>` to the command if you installed

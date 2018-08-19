@@ -23,6 +23,19 @@ import sys
 from jupyter_client.kernelspec import KernelSpecManager
 from IPython.utils.tempdir import TemporaryDirectory
 
+kernel_code_name_allowed_chars = "-."
+
+
+def get_kernel_code_name(kernel_name):
+    """
+    Returns a valid kernel code name (like `swift-for-tensorflow`)
+    from a kernel display name (like `Swift for TensorFlow`).
+    """
+
+    kernel_code_name = kernel_name.lower().replace(" ", kernel_code_name_allowed_chars[0])
+    kernel_code_name = "".join(list(filter(lambda x: x.isalnum() or x in kernel_code_name_allowed_chars, kernel_code_name)))
+    return kernel_code_name
+
 
 def make_kernel_env(args):
     """Returns environment varialbes that tell the kernel where things are."""
@@ -131,18 +144,17 @@ def main():
         'language': 'swift',
         'env': kernel_env,
     }
-    print('kernel.json is\n%s' % json.dumps(kernel_json, indent=2))
+    
+    print('kernel.json:\n%s\n' % json.dumps(kernel_json, indent=2))
 
-    kernel_code_name_allowed_chars = "-."
-    kernel_code_name = filter(lambda x: x.isalnum() or x in kernel_code_name_allowed_chars,
-                              args.kernel_name.lower().replace(" ", kernel_code_name_allowed_chars[0]))
+    kernel_code_name = get_kernel_code_name(args.kernel_name)
 
     with TemporaryDirectory() as td:
         os.chmod(td, 0o755)
         with open(os.path.join(td, 'kernel.json'), 'w') as f:
             json.dump(kernel_json, f, indent=2)
         KernelSpecManager().install_kernel_spec(
-            td, kernel_code_name, user=args.user, prefix=args.prefix, replace=True)
+            td, kernel_code_name, user=args.user, prefix=args.prefix)
 
     print('Registered kernel \'{}\' as \'{}\'!'.format(args.kernel_name, kernel_code_name))
 
