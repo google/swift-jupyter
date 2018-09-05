@@ -3,7 +3,12 @@
 This is a Jupyter Kernel for Swift, intended to make it possible to use Jupyter
 with the [Swift for TensorFlow](https://github.com/tensorflow/swift) project.
 
-# Installation Instructions (prebuilt TensorFlow toolchain)
+# Installation Instructions
+
+## With TensorFlow toolchain
+
+Install a Swift for TensorFlow toolchain, following
+[these instructions](https://github.com/tensorflow/swift/blob/master/Installation.md).
 
 Install these Python modules on your system Python (not in a virtualenv) to
 enable rich output from Swift:
@@ -20,7 +25,6 @@ virtualenv venv
 pip2 install jupyter # Must use python2, because LLDB doesn't support python3.
 ```
 
-Install a Swift for TensorFlow toolchain, following [these instructions](https://github.com/tensorflow/swift/blob/master/Installation.md).
 
 Register the kernel with jupyter:
 
@@ -35,7 +39,7 @@ Now run jupyter inside your virtualenv:
 jupyter notebook
 ```
 
-# Installation Instructions (other toolchains)
+## With other toolchains
 
 You can also use Jupyter with other Swift toolchains (e.g. XCode's Swift
 toolchain, or a toolchain that you have built from sources). Follow the
