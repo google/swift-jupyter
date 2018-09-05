@@ -39,6 +39,8 @@ Now run jupyter inside your virtualenv:
 jupyter notebook
 ```
 
+You should be able to create Swift notebooks. Installation is done!
+
 ## With other toolchains
 
 You can also use Jupyter with other Swift toolchains (e.g. XCode's Swift
