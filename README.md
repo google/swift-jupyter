@@ -7,6 +7,13 @@ with the [Swift for TensorFlow](https://github.com/tensorflow/swift) project.
 
 ## With TensorFlow toolchain
 
+Requirements:
+
+* macOS 10.13.5 or later, with Xcode 10.0 beta or later; OR
+* Ubuntu 16.04 (64-bit); OR
+* other operating systems may work, but you will have to build Swift from
+  sources.
+
 Install a Swift for TensorFlow toolchain, following
 [these instructions](https://github.com/tensorflow/swift/blob/master/Installation.md).
 
