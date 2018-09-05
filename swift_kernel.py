@@ -324,7 +324,8 @@ class SwiftKernel(Kernel):
         name = name_match.group(1)
 
         include_paths = [
-            os.path.dirname(os.path.realpath(sys.argv[0]))
+            os.path.dirname(os.path.realpath(sys.argv[0])),
+            os.path.realpath("."),
         ]
 
         code = None
