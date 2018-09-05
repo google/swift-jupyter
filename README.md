@@ -63,7 +63,7 @@ text for more information.
 
 ## Rich output
 
-You can call Python libaries using [Swift's Python interop] to display rich
+You can call Python libraries using [Swift's Python interop] to display rich
 output in your Swift notebooks. (Eventually, we'd like to support Swift
 libraries that produce rich output too!)
 
