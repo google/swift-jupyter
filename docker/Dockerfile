@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python-dev \
         python-tk \
         clang \
+        libcurl3 \
         libicu-dev \
         libpython-dev \
         libncurses5-dev \
