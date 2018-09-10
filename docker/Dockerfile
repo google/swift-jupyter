@@ -41,7 +41,7 @@ WORKDIR /swift
 
 # Download and extract S4TF
 ENV SWIFT_TF_PLATFORM=ubuntu16.04
-ENV SWIFT_TF_VERSION=swift-tensorflow-DEVELOPMENT-2018-09-05-a
+ENV SWIFT_TF_VERSION=swift-tensorflow-DEVELOPMENT-2018-09-10-a
 ENV SWIFT_TF_URL=https://storage.googleapis.com/swift-tensorflow/$SWIFT_TF_PLATFORM/$SWIFT_TF_VERSION-$SWIFT_TF_PLATFORM.tar.gz
 RUN echo "SWIFT_TF_URL=$SWIFT_TF_URL"
 RUN curl -fSsL $SWIFT_TF_URL -o swift.tar.gz \
