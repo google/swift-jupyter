@@ -503,4 +503,7 @@ class SwiftKernel(Kernel):
 
 if __name__ == '__main__':
     from ipykernel.kernelapp import IPKernelApp
-    IPKernelApp.launch_instance(kernel_class=SwiftKernel)
+    # We pass the kernel name as a command-line arg, since Jupyter gives those
+    # highest priority (in particular overriding any system-wide config).
+    IPKernelApp.launch_instance(
+        argv=sys.argv + ['--IPKernelApp.kernel_class=__main__.SwiftKernel'])
