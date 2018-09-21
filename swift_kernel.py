@@ -502,6 +502,6 @@ class SwiftKernel(Kernel):
         }
 
 if __name__ == '__main__':
-    print("hello world")
+    print("hello world 2")
     from ipykernel.kernelapp import IPKernelApp
     IPKernelApp.launch_instance(kernel_class=SwiftKernel)
