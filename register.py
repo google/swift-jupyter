@@ -135,7 +135,7 @@ def main():
     script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
     kernel_json = {
         'argv': [
-                sys.executable,
+                args.python_interpreter,
                 '%s/swift_kernel.py' % script_dir,
                 '-f',
                 '{connection_file}',
@@ -199,6 +199,12 @@ def parse_args():
         '--sourcekitten',
         help='Path to sourcekitten binary (enables code completion)')
 
+    parser.add_argument(
+        '--python-interpreter',
+        help='Path to a python interpreter to run the kernel. Must be ' +
+             'python2. If you omit this, we will use the interpreter ' +
+             'that is running register.py.')
+
     args = parser.parse_args()
     if args.sys_prefix:
         args.prefix = sys.prefix
@@ -210,6 +216,9 @@ def parse_args():
         args.xcode_path = os.path.realpath(args.xcode_path)
     if args.sourcekitten is not None:
         args.sourcekitten = os.path.realpath(args.sourcekitten)
+    if args.python_interpreter is None:
+        args.python_interpreter = sys.executable
+    args.python_interpreter = os.path.realpath(args.python_interpreter)
     return args
 
 

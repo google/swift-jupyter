@@ -210,6 +210,7 @@ class SwiftKernel(Kernel):
         'name': 'swift',
         'mimetype': 'text/x-swift',
         'file_extension': '.swift',
+        'version': '',
     }
 
     def __init__(self, **kwargs):
@@ -449,14 +450,11 @@ class SwiftKernel(Kernel):
             self._after_successful_execution()
 
         # Send stdout to client.
-        try:
+        if hasattr(result, 'stdout') and len(result.stdout) > 0:
             self.send_response(self.iopub_socket, 'stream', {
                 'name': 'stdout',
                 'text': result.stdout
             })
-        except AttributeError:
-            # Not all results have stdout.
-            pass
 
         # Send values/errors and status to the client.
         if isinstance(result, SuccessWithValue):
@@ -464,7 +462,8 @@ class SwiftKernel(Kernel):
                 'execution_count': self.execution_count,
                 'data': {
                     'text/plain': result.result.description
-                }
+                },
+                'metadata': {}
             })
             return {
                 'status': 'ok',
