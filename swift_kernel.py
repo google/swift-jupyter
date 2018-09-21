@@ -453,7 +453,7 @@ class SwiftKernel(Kernel):
         if hasattr(result, 'stdout') and len(result.stdout) > 0:
             self.send_response(self.iopub_socket, 'stream', {
                 'name': 'stdout',
-                'text': result.stdout
+                'text': result.stdout + ' break a test'
             })
 
         # Send values/errors and status to the client.
@@ -461,7 +461,7 @@ class SwiftKernel(Kernel):
             self.send_response(self.iopub_socket, 'execute_result', {
                 'execution_count': self.execution_count,
                 'data': {
-                    'text/plain': result.result.description
+                    'text/plain': result.result.description + ' break a test!?'
                 },
                 'metadata': {}
             })
@@ -502,5 +502,6 @@ class SwiftKernel(Kernel):
         }
 
 if __name__ == '__main__':
+    print("hello world 4")
     from ipykernel.kernelapp import IPKernelApp
     IPKernelApp.launch_instance(kernel_class=SwiftKernel)
