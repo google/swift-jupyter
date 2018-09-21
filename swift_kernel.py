@@ -461,7 +461,7 @@ class SwiftKernel(Kernel):
             self.send_response(self.iopub_socket, 'execute_result', {
                 'execution_count': self.execution_count,
                 'data': {
-                    'text/plain': result.result.description
+                    'text/plain': result.result.description + ' break a test!?'
                 },
                 'metadata': {}
             })
