@@ -453,7 +453,7 @@ class SwiftKernel(Kernel):
         if hasattr(result, 'stdout') and len(result.stdout) > 0:
             self.send_response(self.iopub_socket, 'stream', {
                 'name': 'stdout',
-                'text': result.stdout
+                'text': result.stdout + ' break a test'
             })
 
         # Send values/errors and status to the client.
