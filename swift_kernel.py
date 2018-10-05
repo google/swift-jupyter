@@ -350,8 +350,12 @@ class SwiftKernel(Kernel):
         ])
 
     def _execute(self, code):
+        # This location directive works around SR-8928.
+        # TODO(SR-8289): Remove.
+        codeWithLocationDirective = \
+            '#sourceLocation(file: "<REPL>", line: 1)\n' + code
         result = self.target.EvaluateExpression(
-                code.encode('utf8'), self.expr_opts)
+                codeWithLocationDirective.encode('utf8'), self.expr_opts)
         stdout = ''.join([buf for buf in self._get_stdout()])
 
         if result.error.type == lldb.eErrorTypeInvalid:
