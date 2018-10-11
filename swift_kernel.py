@@ -154,14 +154,14 @@ class ExecutionResultError(ExecutionResult):
     def description(self):
         raise NotImplementedError()
 
-    def description_and_stdout(self):
-        raise NotImplementedError()
-
 
 class SuccessWithoutValue(ExecutionResultSuccess):
     """The code executed successfully, and did not produce a value."""
     def __init__(self, stdout):
         self.stdout = stdout # str
+
+    def __repr__(self):
+        return 'SuccessWithValue(stdout=%s)' % repr(self.stdout)
 
 
 class SuccessWithValue(ExecutionResultSuccess):
@@ -169,6 +169,11 @@ class SuccessWithValue(ExecutionResultSuccess):
     def __init__(self, stdout, result):
         self.stdout = stdout # str
         self.result = result # SBValue
+
+    def __repr__(self):
+        return 'SuccessWithValue(stdout=%s, result=%s, description=%s)' % (
+                repr(self.stdout), repr(self.result),
+                repr(self.result.description))
 
 
 class PreprocessorError(ExecutionResultError):
@@ -179,8 +184,8 @@ class PreprocessorError(ExecutionResultError):
     def description(self):
         return str(self.exception)
 
-    def description_and_stdout(self):
-        return self.description()
+    def __repr__(self):
+        return 'PreprocessorError(exception=%s)' % repr(self.exception)
 
 
 class PreprocessorException(Exception):
@@ -196,9 +201,10 @@ class SwiftError(ExecutionResultError):
     def description(self):
         return self.result.error.description
 
-    def description_and_stdout(self):
-        return 'message:\n%s\n\nstdout:\n%s' % (self.result.error.description,
-                                                self.stdout)
+    def __repr__(self):
+        return 'SwiftError(stdout=%s, result=%s, description=%s)' % (
+                repr(self.stdout), repr(self.result),
+                repr(self.description()))
 
 
 class SwiftKernel(Kernel):
@@ -276,7 +282,7 @@ class SwiftKernel(Kernel):
         result = self._preprocess_and_execute(
                 '%include "KernelCommunicator.swift"')
         if isinstance(result, ExecutionResultError):
-            self.log.error(result.description_and_stdout())
+            raise Exception('Error initing KernelCommunicator: %s' % result)
 
         decl_code = """
             enum JupyterKernel {
@@ -288,12 +294,13 @@ class SwiftKernel(Kernel):
                json.dumps(self.session.username))
         result = self._preprocess_and_execute(decl_code)
         if isinstance(result, ExecutionResultError):
-            self.log.error(result.description_and_stdout())
+            raise Exception('Error declaring JupyterKernel: %s' % result)
 
     def _init_int_bitwidth(self):
         result = self._execute('Int.bitWidth')
-        if isinstance(result, ExecutionResultError):
-            self.log.error(result.description_and_stdout())
+        if not isinstance(result, SuccessWithValue):
+            raise Exception('Expected value from Int.bitWidth, but got: %s' %
+                            result)
         self._int_bitwidth = int(result.result.description)
 
     def _preprocess_and_execute(self, code):
@@ -378,12 +385,10 @@ class SwiftKernel(Kernel):
     def _after_successful_execution(self):
         result = self._execute(
                 'JupyterKernel.communicator.triggerAfterSuccessfulExecution()')
-        if isinstance(result, ExecutionResultError):
-            self.log.error(result.description_and_stdout())
-            return
-        if isinstance(result, SuccessWithoutValue):
+        if not isinstance(result, SuccessWithValue):
             self.log.error(
-                    'Exepcted value from triggerAfterSuccessfulExecution()')
+                    'Expected value from triggerAfterSuccessfulExecution(), '
+                    'but got: %s' % result)
             return
 
         messages = self._read_jupyter_messages(result.result)
@@ -441,8 +446,7 @@ class SwiftKernel(Kernel):
                 to: KernelCommunicator.ParentMessage(json: %s))
         """ % json.dumps(json.dumps(squash_dates(self._parent_header))))
         if isinstance(result, ExecutionResultError):
-            self.log.error(result.description_and_stdout())
-            return
+            raise Exception('Error setting parent message: %s' % result)
 
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
