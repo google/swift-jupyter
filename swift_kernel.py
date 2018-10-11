@@ -161,7 +161,7 @@ class SuccessWithoutValue(ExecutionResultSuccess):
         self.stdout = stdout # str
 
     def __repr__(self):
-        return 'SuccessWithValue(stdout=%s)' % repr(self.stdout)
+        return 'SuccessWithoutValue(stdout=%s)' % repr(self.stdout)
 
 
 class SuccessWithValue(ExecutionResultSuccess):
