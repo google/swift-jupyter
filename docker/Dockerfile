@@ -41,7 +41,7 @@ WORKDIR /swift
 
 # Download and extract S4TF
 ENV SWIFT_TF_PLATFORM=ubuntu16.04
-ENV SWIFT_TF_VERSION=swift-tensorflow-DEVELOPMENT-2018-09-10-a
+ENV SWIFT_TF_VERSION=swift-tensorflow-DEVELOPMENT-2018-10-05-a
 ENV SWIFT_TF_URL=https://storage.googleapis.com/swift-tensorflow/$SWIFT_TF_PLATFORM/$SWIFT_TF_VERSION-$SWIFT_TF_PLATFORM.tar.gz
 RUN echo "SWIFT_TF_URL=$SWIFT_TF_URL"
 RUN curl -fSsL $SWIFT_TF_URL -o swift.tar.gz \
@@ -66,4 +66,4 @@ WORKDIR /notebooks
 RUN git clone https://github.com/tensorflow/swift-tutorials.git
 
 # Run jupyter on startup
-CMD ["/swift/run_jupyter.sh", "--no-browser", "--ip=*", "--port=8888"]
+CMD ["/swift/run_jupyter.sh", "--no-browser", "--ip=*", "--port=8888", "--NotebookApp.custom_display_url=http://127.0.0.1:8888"]
