@@ -1,6 +1,42 @@
-FROM gcr.io/swift-tensorflow/swift-tensorflow
+# TODO: We should have a job that creates a S4TF base image so that
+#we don't have to duplicate the installation everywhere.
+FROM ubuntu:18.04
 
-USER root
+# Install Swift deps.
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+        python \
+        python-dev \
+        python-pip \
+        python-setuptools \
+        python-tk \
+        python3 \
+        python3-pip \
+        python3-setuptools \
+        clang \
+        libcurl4-openssl-dev \
+        libicu-dev \
+        libpython-dev \
+        libncurses5-dev \
+	libxml2
+
+# Upgrade pips
+RUN pip2 install --upgrade pip
+RUN pip3 install --upgrade pip
+
+# Download and extract S4TF
+# TODO: This should point at a "latest toolchain" link once we have a job
+# that automatically puts a "latest toolchain" somewhere.
+WORKDIR /swift-tensorflow-toolchain
+ENV SWIFT_TF_URL=https://storage.googleapis.com/s4tf-kokoro-artifact-testing/prod/tensorflow/swift/toolchain-ubuntu-docker/release-ubuntu-18.04/5/20181117-115249/toolchain-tar/swift-tensorflow-DEVELOPMENT-2018-11-17-a-.tar.gz
+RUN curl -fSsL $SWIFT_TF_URL -o swift.tar.gz \
+    && mkdir usr \
+    && tar -xzf swift.tar.gz --directory=usr --strip-components=1 \
+    && rm swift.tar.gz
 
 # swift-jupyter runs in python2 because it uses lldb's python libs which only
 # support python2. Therefore, install swift-jupyter's dependencies in python2:
@@ -20,18 +56,15 @@ RUN pip2 --no-cache-dir install \
 RUN pip3 --no-cache-dir install \
         jupyter_kernel_test
 
-USER swift
-
 # Copy the kernel into the container
-RUN mkdir /home/swift/jupyter
-COPY . /home/swift/jupyter
-WORKDIR /home/swift/jupyter
+WORKDIR /swift-jupyter
+COPY . .
 
 # Register the kernel with jupyter
-RUN python2 register.py --user --swift-toolchain /home/swift/swift-tensorflow-toolchain
+RUN python2 register.py --user --swift-toolchain /swift-tensorflow-toolchain
 
 # Run jupyter on startup
 EXPOSE 8888
-RUN mkdir /home/swift/notebooks
-WORKDIR /home/swift/notebooks
-CMD ["/home/swift/jupyter/docker/run_jupyter.sh", "--no-browser", "--ip=0.0.0.0", "--port=8888", "--NotebookApp.custom_display_url=http://127.0.0.1:8888"]
+RUN mkdir /notebooks
+WORKDIR /notebooks
+CMD ["/swift-jupyter/docker/run_jupyter.sh", "--allow-root", "--no-browser", "--ip=0.0.0.0", "--port=8888", "--NotebookApp.custom_display_url=http://127.0.0.1:8888"]

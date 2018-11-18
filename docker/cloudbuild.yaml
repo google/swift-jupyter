@@ -1,5 +1,0 @@
-steps:
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$PROJECT_ID/jupyter-notutorials', '-f', 'docker/Dockerfile', '.']
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['run', '--cap-add', 'SYS_PTRACE', 'gcr.io/$PROJECT_ID/jupyter-notutorials', 'python3', '/home/swift/jupyter/test/test.py', '-v']
