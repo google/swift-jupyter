@@ -221,6 +221,7 @@ class SwiftKernel(Kernel):
 
     def __init__(self, **kwargs):
         super(SwiftKernel, self).__init__(**kwargs)
+        print("I am testing the CI!!")
         self._init_repl_process()
         self._init_completer()
         self._init_kernel_communicator()
