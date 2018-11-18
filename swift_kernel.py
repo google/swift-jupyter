@@ -366,6 +366,8 @@ class SwiftKernel(Kernel):
                 codeWithLocationDirective.encode('utf8'), self.expr_opts)
         stdout = ''.join([buf for buf in self._get_stdout()])
 
+        return "testing that the ci fails when there is a real problem"
+
         if result.error.type == lldb.eErrorTypeInvalid:
             self.completer.record_successful_execution(code)
             return SuccessWithValue(stdout, result)
