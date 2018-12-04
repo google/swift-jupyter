@@ -62,6 +62,31 @@ toolchain that you want to use. You may have to pass `register.py` different
 arguments depending on the type of toolchain. See `register.py`'s `--help`
 text for more information.
 
+## Using the Docker Container
+
+This repository also includes a dockerfile which can be used to run a Jupiter Notebook instance which includes this Swift kernel. To biuld the container, the following command may be used:
+
+```
+# from inside the directory of this repository
+docker build -f docker/Dockerfile -t swift-jupyter .
+```
+
+The resulting container comes with the latest Swift for TensorFlow toolchain installed, along with Jupyter and the Swift kernel contained in this repository.
+
+This container can now be run with the following command:
+
+```
+docker run -p 8888:8888 --security-opt seccomp:unconfined -v /my/host/notebooks:/notebooks swift-jupyter
+```
+
+The functions of these parameters are:
+
+- `-p 8888:8888` exposes the port on which Jupyter is running to the host.
+
+- `--security-opt seccomp:unconfined` adjusts the security under which this container is run, which is required for the Swift REPL.
+
+- `-v <host path>:/notebooks` bind mounts a host directory as a volume where notebooks created in the container will be stored.  If this command is omitted, any notebooks created using the container will not be persisted when the container is stopped. 
+
 # Usage Instructions
 
 ## Rich output
