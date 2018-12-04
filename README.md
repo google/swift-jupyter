@@ -76,14 +76,14 @@ The resulting container comes with the latest Swift for TensorFlow toolchain ins
 This container can now be run with the following command:
 
 ```bash
-docker run -p 8888:8888 --security-opt seccomp:unconfined -v /my/host/notebooks:/notebooks swift-jupyter
+docker run -p 8888:8888 --cap-add SYS_PTRACE -v /my/host/notebooks:/notebooks swift-jupyter
 ```
 
 The functions of these parameters are:
 
 - `-p 8888:8888` exposes the port on which Jupyter is running to the host.
 
-- `--security-opt seccomp:unconfined` adjusts the security under which this container is run, which is required for the Swift REPL.
+- `--cap-add SYS_PTRACE` adjusts the privileges with which this container is run, which is required for the Swift REPL.
 
 - `-v <host path>:/notebooks` bind mounts a host directory as a volume where notebooks created in the container will be stored.  If this command is omitted, any notebooks created using the container will not be persisted when the container is stopped. 
 
