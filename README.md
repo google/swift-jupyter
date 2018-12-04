@@ -64,9 +64,9 @@ text for more information.
 
 ## Using the Docker Container
 
-This repository also includes a dockerfile which can be used to run a Jupiter Notebook instance which includes this Swift kernel. To biuld the container, the following command may be used:
+This repository also includes a dockerfile which can be used to run a Jupyter Notebook instance which includes this Swift kernel. To build the container, the following command may be used:
 
-```
+```bash
 # from inside the directory of this repository
 docker build -f docker/Dockerfile -t swift-jupyter .
 ```
@@ -75,7 +75,7 @@ The resulting container comes with the latest Swift for TensorFlow toolchain ins
 
 This container can now be run with the following command:
 
-```
+```bash
 docker run -p 8888:8888 --security-opt seccomp:unconfined -v /my/host/notebooks:/notebooks swift-jupyter
 ```
 
