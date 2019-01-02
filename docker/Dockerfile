@@ -3,7 +3,7 @@
 FROM ubuntu:18.04
 
 # Allows the caller to specify the toolchain to use.
-ARG swift_tf_url=https://storage.googleapis.com/s4tf-kokoro-artifact-testing/prod/tensorflow/swift/toolchain-ubuntu-docker/release-ubuntu-18.04/5/20181117-115249/toolchain-tar/swift-tensorflow-DEVELOPMENT-2018-11-17-a-.tar.gz
+ARG swift_tf_url=https://storage.googleapis.com/s4tf-kokoro-artifact-testing/latest/swift-tensorflow-DEVELOPMENT-latest.tar.gz
 
 # Install Swift deps.
 ENV DEBIAN_FRONTEND=noninteractive
