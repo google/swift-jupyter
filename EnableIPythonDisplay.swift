@@ -73,4 +73,10 @@ extension IPythonDisplay {
   }
 }
 
+extension PythonObject {
+  func display() {
+    Python.import("IPython.display").display(pythonObject)
+  }
+}
+
 IPythonDisplay.enable()
