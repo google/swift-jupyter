@@ -26,7 +26,7 @@ Install these Python modules on your system Python (not in a virtualenv) to
 enable rich output from Swift:
 
 ```
-pip2 install ipykernel pandas matplotlib numpy # Must use python2 because Swift doesn't have python3 interop yet.
+pip install ipykernel pandas matplotlib numpy
 ```
 
 Create a virtualenv and install jupyter in it:

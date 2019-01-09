@@ -17,26 +17,24 @@
 
 import Python
 
-// Workaround SR-7757.
-#if canImport(Darwin)
-import func Darwin.C.dlopen
-#elseif canImport(Glibc)
-import func Glibc.dlopen
-#else
-#error("Cannot import Darwin or Glibc!")
-#endif
-dlopen("libpython2.7.so", RTLD_NOW | RTLD_GLOBAL)
-
 enum IPythonDisplay {
   static var socket: PythonObject = Python.None
   static var shell: PythonObject = Python.None
 
+  // Tracks whether the Python version that we are interoperating with has a
+  // "real" bytes type that is an array of bytes, rather than Python2's "fake"
+  // bytes type that is just an alias of str.
+  private static var hasRealBytesType: Bool = false
 }
 
 extension IPythonDisplay {
   private static func bytes(_ py: PythonObject) -> KernelCommunicator.BytesReference {
     // TODO: Replace with a faster implementation that reads bytes directly
     // from the python object's memory.
+    if hasRealBytesType {
+      let bytes = py.lazy.map { CChar(bitPattern: UInt8($0)!) }
+      return KernelCommunicator.BytesReference(bytes)
+    }
     let bytes = py.lazy.map { CChar(bitPattern: UInt8(Python.ord($0))!) }
     return KernelCommunicator.BytesReference(bytes)
   }
@@ -60,11 +58,13 @@ extension IPythonDisplay {
       return
     }
 
+    hasRealBytesType = Bool(Python.isinstance(PythonObject("t").encode("utf8")[0], Python.int))!
+
     let swift_shell = Python.import("swift_shell")
     let socketAndShell = swift_shell.create_shell(
       username: JupyterKernel.communicator.jupyterSession.username,
       session_id: JupyterKernel.communicator.jupyterSession.id,
-      key: JupyterKernel.communicator.jupyterSession.key)
+      key: PythonObject(JupyterKernel.communicator.jupyterSession.key).encode("utf8"))
     IPythonDisplay.socket = socketAndShell[0]
     IPythonDisplay.shell = socketAndShell[1]
 
