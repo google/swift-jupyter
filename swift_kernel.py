@@ -248,9 +248,18 @@ class SwiftKernel(Kernel):
         if not self.main_bp:
             raise Exception('Could not set breakpoint')
 
+        repl_env = []
         script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+        repl_env.append('PYTHONPATH=%s' % script_dir)
+        if 'SWIFT_PYTHON_VERSION' in os.environ:
+            repl_env.append(
+                'PYTHON_VERSION=%s' % os.environ['SWIFT_PYTHON_VERSION'])
+        if 'SWIFT_PYTHON_LIBRARY' in os.environ:
+            repl_env.append(
+                'PYTHON_LIBRARY=%s' % os.environ['SWIFT_PYTHON_LIBRARY'])
+
         self.process = self.target.LaunchSimple(None,
-                                                ['PYTHONPATH=%s' % script_dir],
+                                                repl_env,
                                                 os.getcwd())
         if not self.process:
             raise Exception('Could not launch process')

@@ -97,6 +97,11 @@ def make_kernel_env(args):
     if args.sourcekitten is not None:
         kernel_env['SOURCEKITTEN'] = args.sourcekitten
 
+    if args.swift_python_version is not None:
+        kernel_env['SWIFT_PYTHON_VERSION'] = args.swift_python_version
+    if args.swift_python_library is not None:
+        kernel_env['SWIFT_PYTHON_LIBRARY'] = args.swift_python_library
+
     return kernel_env
 
 
@@ -205,6 +210,15 @@ def parse_args():
              'python2. If you omit this, we will use the interpreter ' +
              'that is running register.py.')
 
+    parser.add_argument(
+        '--swift-python-version',
+        help='direct Swift\'s Python interop library to use this version of ' +
+             'Python')
+    parser.add_argument(
+        '--swift-python-library',
+        help='direct Swift\'s Python interop library to use this Python ' +
+             'library')
+
     args = parser.parse_args()
     if args.sys_prefix:
         args.prefix = sys.prefix
@@ -219,6 +233,10 @@ def parse_args():
     if args.python_interpreter is None:
         args.python_interpreter = sys.executable
     args.python_interpreter = os.path.realpath(args.python_interpreter)
+    if args.swift_python_version is not None and \
+            args.swift_python_library is not None:
+        raise Exception('Should not specify --swift-python-version and ' +
+                        '--swift-python-library at the same time.')
     return args
 
 

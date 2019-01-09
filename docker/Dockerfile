@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libcurl4-openssl-dev \
         libicu-dev \
         libpython-dev \
+        libpython3-dev \
         libncurses5-dev \
 	libxml2
 
@@ -45,11 +46,16 @@ RUN pip2 --no-cache-dir install \
         ipykernel
 
 # Install some python libraries that are useful to call from swift. Since
-# swift can currently only call python2, install them in python2:
+# swift can interoperate with python2 and python3, install them in both.
 RUN pip2 --no-cache-dir install \
         matplotlib \
         numpy \
         pandas
+RUN pip3 --no-cache-dir install \
+        matplotlib \
+        numpy \
+        pandas \
+	ipykernel
 
 # The tests use jupyter_kernel_test, which requires python3. So install that
 # in python3.
@@ -61,7 +67,8 @@ WORKDIR /swift-jupyter
 COPY . .
 
 # Register the kernel with jupyter
-RUN python2 register.py --user --swift-toolchain /swift-tensorflow-toolchain
+RUN python2 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-version 2.7 --kernel-name "Swift (with Python 2.7)"
+RUN python2 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-library /usr/lib/x86_64-linux-gnu/libpython3.6m.so --kernel-name "Swift (with Python 3.6)"
 
 # Run jupyter on startup
 EXPOSE 8888
