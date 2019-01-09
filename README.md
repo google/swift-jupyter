@@ -19,8 +19,8 @@ with the [Swift for TensorFlow](https://github.com/tensorflow/swift) project.
 Install a compatible Swift for TensorFlow toolchain, following
 [these instructions](https://github.com/tensorflow/swift/blob/master/Installation.md). Currently, the following toolchain versions are known to be compatible (we will update the readme when we test new toolchain versions):
 
-* MacOS: Oct 5, 2018
-* Linux: Oct 17, 2018
+* MacOS: January 04, 2019
+* Linux: January 04, 2019
 
 Install these Python modules on your system Python (not in a virtualenv) to
 enable rich output from Swift:
