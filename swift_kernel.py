@@ -251,12 +251,14 @@ class SwiftKernel(Kernel):
         repl_env = []
         script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
         repl_env.append('PYTHONPATH=%s' % script_dir)
-        if 'SWIFT_PYTHON_VERSION' in os.environ:
-            repl_env.append(
-                'PYTHON_VERSION=%s' % os.environ['SWIFT_PYTHON_VERSION'])
-        if 'SWIFT_PYTHON_LIBRARY' in os.environ:
-            repl_env.append(
-                'PYTHON_LIBRARY=%s' % os.environ['SWIFT_PYTHON_LIBRARY'])
+        env_var_blacklist = [
+            'PYTHONPATH',
+            'REPL_SWIFT_PATH'
+        ]
+        for key in os.environ:
+            if key in env_var_blacklist:
+                continue
+            repl_env.append('%s=%s' % (key, os.environ[key]))
 
         self.process = self.target.LaunchSimple(None,
                                                 repl_env,

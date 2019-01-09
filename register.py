@@ -98,9 +98,9 @@ def make_kernel_env(args):
         kernel_env['SOURCEKITTEN'] = args.sourcekitten
 
     if args.swift_python_version is not None:
-        kernel_env['SWIFT_PYTHON_VERSION'] = args.swift_python_version
+        kernel_env['PYTHON_VERSION'] = args.swift_python_version
     if args.swift_python_library is not None:
-        kernel_env['SWIFT_PYTHON_LIBRARY'] = args.swift_python_library
+        kernel_env['PYTHON_LIBRARY'] = args.swift_python_library
 
     return kernel_env
 
