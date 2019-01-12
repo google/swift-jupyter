@@ -440,6 +440,11 @@ class SwiftKernel(Kernel):
         if get_count_error.Fail():
             raise Exception('getting count: %s' % str(get_count_error))
 
+        # ReadMemory requires that count is positive, so early-return an empty
+        # byte array when count is 0.
+        if count == 0:
+            return bytes()
+
         get_data_error = lldb.SBError()
         data = self.process.ReadMemory(position, count, get_data_error)
         if get_data_error.Fail():
