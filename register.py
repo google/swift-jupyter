@@ -71,7 +71,7 @@ def make_kernel_env(args):
         swift_build_dir = '%s/swift-linux-x86_64' % args.swift_build
         lldb_build_dir = '%s/lldb-linux-x86_64' % args.swift_build
 
-        kernel_env['PYTHONPATH'] = '%s/lib/python2.7/site-packages' % lldb_build_dir
+        kernel_env['PYTHONPATH'] = '%s/lib/python3.5/site-packages' % lldb_build_dir
         kernel_env['LD_LIBRARY_PATH'] = '%s/lib/swift/linux' % swift_build_dir
         kernel_env['REPL_SWIFT_PATH'] = '%s/bin/repl_swift' % lldb_build_dir
 

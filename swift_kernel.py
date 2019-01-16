@@ -24,6 +24,8 @@ import re
 
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
+from tornado import gen
+from tornado import ioloop
 
 
 class Completer:
@@ -464,11 +466,12 @@ class SwiftKernel(Kernel):
         if isinstance(result, ExecutionResultError):
             raise Exception('Error setting parent message: %s' % result)
 
+    @gen.coroutine
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
         self._set_parent_message()
 
-        result = self._preprocess_and_execute(code)
+        result = yield ioloop.IOLoop.run_in_executor(self._preprocess_and_execute, code)
 
         if isinstance(result, ExecutionResultSuccess):
             self._after_successful_execution()
@@ -489,19 +492,19 @@ class SwiftKernel(Kernel):
                 },
                 'metadata': {}
             })
-            return {
+            raise gen.Return({
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
-            }
+            })
         elif isinstance(result, SuccessWithoutValue):
-            return {
+            raise gen.Return({
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
-            }
+            })
         elif isinstance(result, ExecutionResultError):
             self.send_response(self.iopub_socket, 'error', {
                 'execution_count': self.execution_count,
@@ -509,15 +512,16 @@ class SwiftKernel(Kernel):
                 'evalue': '',
                 'traceback': [result.description()],
             })
-            return {
+            raise gen.Return({
                 'status': 'error',
                 'execution_count': self.execution_count,
                 'ename': '',
                 'evalue': '',
                 'traceback': [result.description()],
-            }
+            })
 
     def do_complete(self, code, cursor_pos):
+        self.log.error("got a completion request")
         completions = self.completer.complete(code, cursor_pos)
         return {
             'matches': [completion['sourcetext'] for completion in completions],
