@@ -39,9 +39,13 @@ RUN curl -fSsL $swift_tf_url -o swift.tar.gz \
     && tar -xzf swift.tar.gz --directory=usr --strip-components=1 \
     && rm swift.tar.gz
 
-# swift-jupyter runs in python2 because it uses lldb's python libs which only
-# support python2. Therefore, install swift-jupyter's dependencies in python2:
+# Install swift-jupyter's dependencies in python2 and python3 because we might
+# run the kernel in either, depending on whether the toolchain's lldb is built
+# with python2 or python3 support.
 RUN pip2 install \
+        jupyter \
+        ipykernel
+RUN pip3 install \
         jupyter \
         ipykernel
 
@@ -54,8 +58,7 @@ RUN pip2 install \
 RUN pip3 install \
         matplotlib \
         numpy \
-        pandas \
-	ipykernel
+        pandas
 
 # The tests use jupyter_kernel_test, which requires python3. So install that
 # in python3.
@@ -67,8 +70,9 @@ WORKDIR /swift-jupyter
 COPY . .
 
 # Register the kernel with jupyter
-RUN python2 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-version 2.7 --kernel-name "Swift (with Python 2.7)"
-RUN python2 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-library /usr/lib/x86_64-linux-gnu/libpython3.6m.so --kernel-name "Swift (with Python 3.6)"
+RUN echo "Running kernel with: $(/swift-jupyter/docker/determine_kernel_python.sh)" && \
+    $(/swift-jupyter/docker/determine_kernel_python.sh) register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-version 2.7 --kernel-name "Swift (with Python 2.7)" && \
+    $(/swift-jupyter/docker/determine_kernel_python.sh) register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-library /usr/lib/x86_64-linux-gnu/libpython3.6m.so --kernel-name "Swift (with Python 3.6)"
 
 # Configure cuda
 RUN echo "/usr/local/cuda-9.2/targets/x86_64-linux/lib/stubs" > /etc/ld.so.conf.d/cuda-9.2-stubs.conf && \
