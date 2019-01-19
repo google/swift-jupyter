@@ -140,7 +140,7 @@ def main():
     script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
     kernel_json = {
         'argv': [
-                args.python_interpreter,
+                'python', 
                 '%s/swift_kernel.py' % script_dir,
                 '-f',
                 '{connection_file}',

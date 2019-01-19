@@ -21,7 +21,8 @@ import subprocess
 import sys
 import os
 import re
-
+import time
+import signal
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
 from tornado import gen
@@ -209,6 +210,28 @@ class SwiftError(ExecutionResultError):
                 repr(self.description()))
 
 
+import threading
+class SIGINTHandlerThread(threading.Thread):
+    def __init__(self, kernel):
+        super(SIGINTHandlerThread, self).__init__()
+        self.kernel = kernel
+
+    def run(self):
+        try:
+            self.kernel.log.error('Setting up the SIGINT handler')
+            #signal.pthread_sigmask(signal.SIG_UNBLOCK, [signal.SIGINT])
+            self.kernel.log.error('SIGINT handler is set up')
+            while True:
+                time.sleep(1)
+                self.kernel.log.error('SIGINT handler still alive')
+                if signal.SIGINT in signal.sigpending():
+                    self.kernel.log.error('handling SIGINT!!!')
+                    self.kernel.process.SendAsyncInterrupt()
+        except e:
+            self.kernel.log.error('hmm')
+            self.kernel.log.error(e)
+
+
 class SwiftKernel(Kernel):
     implementation = 'SwiftKernel'
     implementation_version = '0.1'
@@ -223,6 +246,11 @@ class SwiftKernel(Kernel):
 
     def __init__(self, **kwargs):
         super(SwiftKernel, self).__init__(**kwargs)
+        self.sigintHandlerThread = SIGINTHandlerThread(self)
+        self.sigintHandlerThread.start()
+        #def handler(signum, frame):
+        #    self.log.error('Received signal: %d' % signum)
+        #signal.signal(signal.SIGINT, handler)
         self._init_repl_process()
         self._init_completer()
         self._init_kernel_communicator()
@@ -297,13 +325,18 @@ class SwiftKernel(Kernel):
         if isinstance(result, ExecutionResultError):
             raise Exception('Error initing KernelCommunicator: %s' % result)
 
+        self.log.error(type(self.session.session))
+        self.log.error(type(self.session.key))
+        self.log.error(type(self.session.username))
+    
         decl_code = """
             enum JupyterKernel {
                 static var communicator = KernelCommunicator(
                     jupyterSession: KernelCommunicator.JupyterSession(
                         id: %s, key: %s, username: %s))
             }
-        """ % (json.dumps(self.session.session), json.dumps(self.session.key),
+        """ % (json.dumps(self.session.session),
+               json.dumps(self.session.key.decode('utf8')),
                json.dumps(self.session.username))
         result = self._preprocess_and_execute(decl_code)
         if isinstance(result, ExecutionResultError):
@@ -375,7 +408,7 @@ class SwiftKernel(Kernel):
         codeWithLocationDirective = \
             '#sourceLocation(file: "<REPL>", line: 1)\n' + code
         result = self.target.EvaluateExpression(
-                codeWithLocationDirective.encode('utf8'), self.expr_opts)
+                codeWithLocationDirective, self.expr_opts)
         stdout = ''.join([buf for buf in self._get_stdout()])
 
         if result.error.type == lldb.eErrorTypeInvalid:
@@ -471,7 +504,21 @@ class SwiftKernel(Kernel):
                    user_expressions=None, allow_stdin=False):
         self._set_parent_message()
 
-        result = yield ioloop.IOLoop.run_in_executor(self._preprocess_and_execute, code)
+        if not hasattr(self, 'periodic'):
+            self.log.error("setting up tick")
+            def printit():
+                self.log.error("tick")
+            self.periodic = ioloop.PeriodicCallback(printit, 1000)
+            self.periodic.start()
+
+
+
+        # yield self.io_loop.run_in_executor(None, time.sleep, 10)
+        #
+
+        result = yield self.io_loop.run_in_executor(None, self._preprocess_and_execute, code)
+        self.log.error(self.io_loop.asyncio_loop._default_executor)
+        self.log.error(self.io_loop.asyncio_loop._default_executor._max_workers)
 
         if isinstance(result, ExecutionResultSuccess):
             self._after_successful_execution()
@@ -492,19 +539,19 @@ class SwiftKernel(Kernel):
                 },
                 'metadata': {}
             })
-            raise gen.Return({
+            return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
-            })
+            }
         elif isinstance(result, SuccessWithoutValue):
-            raise gen.Return({
+            return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
-            })
+            }
         elif isinstance(result, ExecutionResultError):
             self.send_response(self.iopub_socket, 'error', {
                 'execution_count': self.execution_count,
@@ -512,14 +559,15 @@ class SwiftKernel(Kernel):
                 'evalue': '',
                 'traceback': [result.description()],
             })
-            raise gen.Return({
+            return {
                 'status': 'error',
                 'execution_count': self.execution_count,
                 'ename': '',
                 'evalue': '',
                 'traceback': [result.description()],
-            })
+            }
 
+    @gen.coroutine
     def do_complete(self, code, cursor_pos):
         self.log.error("got a completion request")
         completions = self.completer.complete(code, cursor_pos)
@@ -530,8 +578,11 @@ class SwiftKernel(Kernel):
         }
 
 if __name__ == '__main__':
+    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGINT])
+
     from ipykernel.kernelapp import IPKernelApp
     # We pass the kernel name as a command-line arg, since Jupyter gives those
     # highest priority (in particular overriding any system-wide config).
     IPKernelApp.launch_instance(
         argv=sys.argv + ['--IPKernelApp.kernel_class=__main__.SwiftKernel'])
+
