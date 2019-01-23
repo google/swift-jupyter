@@ -41,17 +41,17 @@ RUN curl -fSsL $swift_tf_url -o swift.tar.gz \
 
 # swift-jupyter runs in python2 because it uses lldb's python libs which only
 # support python2. Therefore, install swift-jupyter's dependencies in python2:
-RUN pip2 --no-cache-dir install \
+RUN pip2 install \
         jupyter \
         ipykernel
 
 # Install some python libraries that are useful to call from swift. Since
 # swift can interoperate with python2 and python3, install them in both.
-RUN pip2 --no-cache-dir install \
+RUN pip2 install \
         matplotlib \
         numpy \
         pandas
-RUN pip3 --no-cache-dir install \
+RUN pip3 install \
         matplotlib \
         numpy \
         pandas \
@@ -59,7 +59,7 @@ RUN pip3 --no-cache-dir install \
 
 # The tests use jupyter_kernel_test, which requires python3. So install that
 # in python3.
-RUN pip3 --no-cache-dir install \
+RUN pip3 install \
         jupyter_kernel_test
 
 # Copy the kernel into the container
