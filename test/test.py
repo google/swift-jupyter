@@ -1,5 +1,6 @@
 import unittest
 import jupyter_kernel_test
+import sys
 
 # This superclass defines tests but does not run them against kernels, so that
 # we can subclass this to run the same tests against different kernels.
@@ -48,12 +49,12 @@ class SwiftKernelTests:
            print("5^2 is", square(5))
         """)
         self.assertEqual(reply['content']['status'], 'ok')
-        self.assertIn("5^2 is 125.0", output_msgs[0]['content']['data'])
+        self.assertIn("5^2 is 25.0", output_msgs[0]['content']['text'])
         reply, output_msgs = self.execute_helper(code="""
            print("gradient of square at 5 is", gradient(at: 5, in: square))
         """)
         self.assertEqual(reply['content']['status'], 'ok')
-        self.assertIn("gradient of square at 5 is 10.0", output_msgs[0]['content']['data'])
+        self.assertIn("gradient of square at 5 is 10.0", output_msgs[0]['content']['text'])
 
 
 class SwiftKernelTestsPython27(SwiftKernelTests,
