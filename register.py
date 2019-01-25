@@ -41,6 +41,7 @@ def make_kernel_env(args):
     """Returns environment varialbes that tell the kernel where things are."""
 
     kernel_env = {}
+    kernel_env['LLDB_USE_SERIALIZATION'] = '1'
 
     if args.swift_toolchain is not None:
         # Use a prebuilt Swift toolchain.
