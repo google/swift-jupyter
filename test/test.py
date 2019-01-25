@@ -56,6 +56,28 @@ class SwiftKernelTests:
         self.assertEqual(reply['content']['status'], 'ok')
         self.assertIn("gradient of square at 5 is 10.0", output_msgs[0]['content']['text'])
 
+    def test_error_runtime(self):
+        reply, output_msgs = self.execute_helper(code="""
+            func a() { fatalError("oops") }
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        reply, output_msgs = self.execute_helper(code="""
+            print("hello")
+            print("world")
+            func b() { a() }
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        reply, output_msgs = self.execute_helper(code="""
+            b()
+        """)
+        self.assertEqual(reply['content']['status'], 'error')
+        traceback = output_msgs[0]['content']['traceback']
+        self.assertIn('Fatal error: oops', traceback[0])
+        self.assertIn('Current stack trace:', traceback[1])
+        self.assertIn('a() at <Cell 2>:2:24', traceback[2])
+        self.assertIn('b() at <Cell 3>:4:24', traceback[3])
+        self.assertIn('main at <Cell 4>:2:13', traceback[4])
+
 
 class SwiftKernelTestsPython27(SwiftKernelTests,
                                jupyter_kernel_test.KernelTests):

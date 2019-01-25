@@ -271,10 +271,14 @@ class SwiftKernel(Kernel):
             'swift')
         self.expr_opts.SetLanguage(swift_language)
         self.expr_opts.SetREPLMode(True)
+        self.expr_opts.SetUnwindOnError(False)
+        self.expr_opts.SetGenerateDebugInfo(True)
 
         # Sets an infinite timeout so that users can run aribtrarily long
         # computations.
         self.expr_opts.SetTimeoutInMicroSeconds(0)
+
+        self.main_thread = self.process.GetThreadAtIndex(0)
 
     def _init_completer(self):
       self.completer = Completer(
@@ -313,6 +317,9 @@ class SwiftKernel(Kernel):
             raise Exception('Expected value from Int.bitWidth, but got: %s' %
                             result)
         self._int_bitwidth = int(result.result.description)
+
+    def _file_name_for_source_location(self):
+        return '<Cell %d>' % self.execution_count
 
     def _preprocess_and_execute(self, code):
         try:
@@ -363,15 +370,15 @@ class SwiftKernel(Kernel):
         return '\n'.join([
             '#sourceLocation(file: "%s", line: 1)' % name,
             code,
-            '#sourceLocation(file: "<REPL>", line: %d)' % (line_index + 1),
+            '#sourceLocation(file: "%s", line: %d)' % (
+                self._file_name_for_source_location(), line_index + 1),
             ''
         ])
 
     def _execute(self, code):
-        # This location directive works around SR-8928.
-        # TODO(SR-8289): Remove.
-        codeWithLocationDirective = \
-            '#sourceLocation(file: "<REPL>", line: 1)\n' + code
+        locationDirective = '#sourceLocation(file: "%s", line: 1)' % (
+            self._file_name_for_source_location())
+        codeWithLocationDirective = locationDirective + '\n' + code
         result = self.target.EvaluateExpression(
                 codeWithLocationDirective.encode('utf8'), self.expr_opts)
         stdout = ''.join([buf for buf in self._get_stdout()])
@@ -464,24 +471,66 @@ class SwiftKernel(Kernel):
         if isinstance(result, ExecutionResultError):
             raise Exception('Error setting parent message: %s' % result)
 
+    def _get_pretty_main_thread_stack_trace(self):
+        stack_trace = []
+        for frame in self.main_thread:
+            # Do not include frames without source location information. These
+            # are frames in libraries and frames that belong to the LLDB
+            # expression execution implementation.
+            if not frame.line_entry.file:
+                continue
+            # Do not include <compiler-generated> frames. These are
+            # specializations of library functions.
+            if frame.line_entry.file.fullpath == '<compiler-generated>':
+                continue
+            stack_trace.append(str(frame))
+        return stack_trace
+
+    def _make_error_message(self, traceback):
+        return {
+            'status': 'error',
+            'execution_count': self.execution_count,
+            'ename': '',
+            'evalue': '',
+            'traceback': traceback
+        }
+
+    def _send_exception_report(self, while_doing, e):
+        error_message = self._make_error_message([
+            'Kernel is in a bad state. Try restarting the kernel.',
+            '',
+            'Exception in `%s`:' % while_doing,
+            str(e)
+        ])
+        self.send_response(self.iopub_socket, 'error', error_message)
+        return error_message
+
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
-        self._set_parent_message()
+        try:
+            self._set_parent_message()
+        except Exception as e:
+            return self._send_exception_report('_set_parent_message', e)
 
-        result = self._preprocess_and_execute(code)
+        try:
+            result = self._preprocess_and_execute(code)
+        except Exception as e:
+            return self._send_exception_report('_preprocess_and_execute', e)
 
         if isinstance(result, ExecutionResultSuccess):
-            self._after_successful_execution()
+            try:
+                self._after_successful_execution()
+            except Exception as e:
+                return self._send_exception_report(
+                    '_after_successful_execution', e)
 
-        # Send stdout to client.
-        if hasattr(result, 'stdout') and len(result.stdout) > 0:
-            self.send_response(self.iopub_socket, 'stream', {
-                'name': 'stdout',
-                'text': result.stdout
-            })
-
-        # Send values/errors and status to the client.
+        # Send stdout, values/errors and status to the client.
         if isinstance(result, SuccessWithValue):
+            if hasattr(result, 'stdout') and len(result.stdout) > 0:
+                self.send_response(self.iopub_socket, 'stream', {
+                    'name': 'stdout',
+                    'text': result.stdout
+                })
             self.send_response(self.iopub_socket, 'execute_result', {
                 'execution_count': self.execution_count,
                 'data': {
@@ -496,6 +545,11 @@ class SwiftKernel(Kernel):
                 'user_expressions': {}
             }
         elif isinstance(result, SuccessWithoutValue):
+            if hasattr(result, 'stdout') and len(result.stdout) > 0:
+                self.send_response(self.iopub_socket, 'stream', {
+                    'name': 'stdout',
+                    'text': result.stdout
+                })
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
@@ -503,19 +557,50 @@ class SwiftKernel(Kernel):
                 'user_expressions': {}
             }
         elif isinstance(result, ExecutionResultError):
-            self.send_response(self.iopub_socket, 'error', {
-                'execution_count': self.execution_count,
-                'ename': '',
-                'evalue': '',
-                'traceback': [result.description()],
-            })
-            return {
-                'status': 'error',
-                'execution_count': self.execution_count,
-                'ename': '',
-                'evalue': '',
-                'traceback': [result.description()],
-            }
+            if hasattr(result, 'stdout') and len(result.stdout) > 0:
+                # When there is stdout, it is a runtime error. Therefore,
+                # parse the stdout to get the error message and query the LLDB
+                # APIs for the stack trace.
+                #
+                # Note that the stdout-parsing logic assumes that the stdout
+                # for a runtime error always has this form:
+                #
+                #   <execution stdout from before the error happened>
+                #   <error message>
+                #   Current stack trace:
+                #     <a stack trace>
+                #
+                # It would be nicer if we could get the runtime error message
+                # from somewhere other than stdout, so that we don't need
+                # fragile text processing to parse out the part of the error
+                # message that we are interested in.
+                traceback = []
+
+                # First, put the error message in the traceback. The error
+                # message includes a useless stack trace (it doesn't have
+                # source line info), so do not include the useles stack trace.
+                for line in result.stdout.split('\n'):
+                    if line.startswith('Current stack trace'):
+                        break
+                    traceback.append(line)
+
+                # Next, put a useful stack trace with source line info in the
+                # traceback.
+                traceback.append('Current stack trace:')
+                traceback += [
+                    '\t%s' % frame
+                    for frame in self._get_pretty_main_thread_stack_trace()
+                ]
+
+                error_message = self._make_error_message(traceback)
+                self.send_response(self.iopub_socket, 'error', error_message)
+                return error_message
+
+            # There is no stdout, so it must be a compile error. Simply return
+            # the error without trying to get a stack trace.
+            error_message = self._make_error_message([result.description()])
+            self.send_response(self.iopub_socket, 'error', error_message)
+            return error_message
 
     def do_complete(self, code, cursor_pos):
         completions = self.completer.complete(code, cursor_pos)
