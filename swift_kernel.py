@@ -486,53 +486,43 @@ class SwiftKernel(Kernel):
             stack_trace.append(str(frame))
         return stack_trace
 
+    def _make_error_message(self, traceback):
+        return {
+            'status': 'error',
+            'execution_count': self.execution_count,
+            'ename': '',
+            'evalue': '',
+            'traceback': traceback
+        }
+
+    def _send_exception_report(self, while_doing, e):
+        error_message = self._make_error_message([
+            'Kernel is in a bad state. Try restarting the kernel.',
+            '',
+            'Exception in `%s`:' % while_doing,
+            str(e)
+        ])
+        self.send_response(self.iopub_socket, 'error', error_message)
+        return error_message
+
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
-        def make_error_message(traceback):
-            return {
-                'status': 'error',
-                'execution_count': self.execution_count,
-                'ename': '',
-                'evalue': '',
-                'traceback': traceback
-            }
-
         try:
             self._set_parent_message()
         except Exception as e:
-            error_message = make_error_message([
-                'Kernel is in a bad state. Try restarting the kernel.',
-                '',
-                'Exception in `_set_parent_message`:',
-                str(e)
-            ])
-            self.send_response(self.iopub_socket, 'error', error_message)
-            return error_message
+            return self._send_exception_report('_set_parent_message', e)
 
         try:
             result = self._preprocess_and_execute(code)
         except Exception as e:
-            error_message = make_error_message([
-                'Kernel is in a bad state. Try restarting the kernel.',
-                '',
-                'Exception in `_preprocess_and_execute`:',
-                str(e)
-            ])
-            self.send_response(self.iopub_socket, 'error', error_message)
-            return error_message
+            return self._send_exception_report('_preprocess_and_execute', e)
 
         if isinstance(result, ExecutionResultSuccess):
             try:
                 self._after_successful_execution()
             except Exception as e:
-                error_message = make_error_message([
-                    'Kernel is in a bad state. Try restarting the kernel.',
-                    '',
-                    'Exception in `_after_successful_execution`:',
-                    str(e)
-                ])
-                self.send_response(self.iopub_socket, 'error', error_message)
-                return error_message
+                return self._send_exception_report(
+                    '_after_successful_execution', e)
 
         # Send stdout, values/errors and status to the client.
         if isinstance(result, SuccessWithValue):
@@ -602,13 +592,13 @@ class SwiftKernel(Kernel):
                     for frame in self._get_pretty_main_thread_stack_trace()
                 ]
 
-                error_message = make_error_message(traceback)
+                error_message = self._make_error_message(traceback)
                 self.send_response(self.iopub_socket, 'error', error_message)
                 return error_message
 
             # There is no stdout, so it must be a compile error. Simply return
             # the error without trying to get a stack trace.
-            error_message = make_error_message([result.description()])
+            error_message = self._make_error_message([result.description()])
             self.send_response(self.iopub_socket, 'error', error_message)
             return error_message
 
