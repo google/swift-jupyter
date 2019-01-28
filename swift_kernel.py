@@ -299,9 +299,7 @@ class SwiftKernel(Kernel):
         if isinstance(result, ExecutionResultError):
             raise Exception('Error initing KernelCommunicator: %s' % result)
 
-        session_key = self.session.key
-        if sys.version_info[0] == 3:
-            session_key = session_key.decode('utf8')
+        session_key = self.session.key.decode('utf8')
         decl_code = """
             enum JupyterKernel {
                 static var communicator = KernelCommunicator(
@@ -382,8 +380,6 @@ class SwiftKernel(Kernel):
         locationDirective = '#sourceLocation(file: "%s", line: 1)' % (
             self._file_name_for_source_location())
         codeWithLocationDirective = locationDirective + '\n' + code
-        if sys.version_info[0] == 2:
-            codeWithLocationDirective = codeWithLocationDirective.encode('utf8')
         result = self.target.EvaluateExpression(
                 codeWithLocationDirective, self.expr_opts)
         stdout = ''.join([buf for buf in self._get_stdout()])

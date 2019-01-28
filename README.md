@@ -9,42 +9,43 @@ with the [Swift for TensorFlow](https://github.com/tensorflow/swift) project.
 
 ### Requirements
 
+Operating system:
+
 * macOS 10.13.5 or later, with Xcode 10.0 beta or later; OR
-* Ubuntu 16.04 (64-bit); OR
+* Ubuntu 18.04 (64-bit); OR
 * other operating systems may work, but you will have to build Swift from
   sources.
 
+Dependencies:
+
+* Python 3 (Ubuntu 18.04 package name: `python3`)
+* Python 3 Virtualenv (Ubuntu 18.04 package name: `python3-venv`)
+
 ### Installation
 
-Install a compatible Swift for TensorFlow toolchain, following
-[these instructions](https://github.com/tensorflow/swift/blob/master/Installation.md). Currently, the following toolchain versions are known to be compatible (we will update the readme when we test new toolchain versions):
+swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently,
+most prebuilt toolchains do not have LLDB Python3 support. Therefore, you
+should:
 
-* MacOS: January 04, 2019
-* Linux: January 04, 2019
+* build a Swift toolchain with LLDB Python3 support yourself from sources (see
+  the section "Building toolchain with LLDB Python3 support"); OR
+* use a
+  [previous version of swift-jupyter](https://github.com/google/swift-jupyter/tree/python2-compatible)
+  that is compatible with Python2 LLDB.
 
-Install these Python modules on your system Python (not in a virtualenv) to
-enable rich output from Swift:
+Extract the Swift toolchain somewhere.
+
+Create a virtualenv, install the requirements in it, and register the kernel in
+it:
 
 ```
-pip install ipykernel pandas matplotlib numpy
-```
-
-Create a virtualenv and install jupyter in it:
-
-```
-virtualenv venv
+python3 -m venv venv
 . venv/bin/activate
-pip2 install jupyter # Must use python2, because LLDB doesn't support python3.
-```
-
-
-Register the kernel with jupyter:
-
-```
+pip install -r requirements.txt
 python register.py --sys-prefix --swift-toolchain <path to extracted swift toolchain directory>
 ```
 
-Now run jupyter inside your virtualenv:
+Finally, run Jupyter:
 
 ```
 . venv/bin/activate
@@ -53,14 +54,22 @@ jupyter notebook
 
 You should be able to create Swift notebooks. Installation is done!
 
-## With other toolchains
+### Building toolchain with LLDB Python3 support
 
-You can also use Jupyter with other Swift toolchains (e.g. XCode's Swift
-toolchain, or a toolchain that you have built from sources). Follow the
-instructions from the previous section, but point `register.py` at the
-toolchain that you want to use. You may have to pass `register.py` different
-arguments depending on the type of toolchain. See `register.py`'s `--help`
-text for more information.
+Follow the
+[Building Swift for TensorFlow](https://github.com/apple/swift/tree/tensorflow#building-swift-for-tensorflow)
+instructions, with some modifications:
+
+* Also install the Python 3 development headers. (For Ubuntu 18.04,
+  `sudo apt-get install libpython3-dev`). The LLDB build will automatically
+  find these and build with Python 3 support.
+* Instead of running `utils/build-script`, run
+  `SWIFT_PACKAGE=tensorflow_linux,no_test ./swift/utils/build-toolchain local.swift`
+  or `SWIFT_PACKAGE=tensorflow_linux ./swift/utils/build-toolchain local.swift,gpu,no_test`
+  (depending on whether you want to build tensorflow with GPU support).
+
+This will create a tar file containing the full toolchain. You can now proceed
+with the installation instructions from the previous section.
 
 ## Using the Docker Container
 
