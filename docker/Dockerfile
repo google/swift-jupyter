@@ -39,6 +39,13 @@ RUN curl -fSsL $swift_tf_url -o swift.tar.gz \
     && tar -xzf swift.tar.gz --directory=usr --strip-components=1 \
     && rm swift.tar.gz
 
+# Copy the kernel into the container
+WORKDIR /swift-jupyter
+COPY . .
+
+# Install swift-jupyter's dependencies in python3 because we run the kernel in python3.
+RUN pip3 install -r requirements.txt
+
 # Install some python libraries that are useful to call from swift. Since
 # swift can interoperate with python2 and python3, install them in both.
 RUN pip2 install \
@@ -51,13 +58,6 @@ RUN pip3 install \
         numpy \
         pandas \
 	ipykernel
-
-# Copy the kernel into the container
-WORKDIR /swift-jupyter
-COPY . .
-
-# Install swift-jupyter's dependencies in python3 because we run the kernel in python3.
-RUN pip3 install -r requirements.txt
 
 # Register the kernel with jupyter
 RUN python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-version 2.7 --kernel-name "Swift (with Python 2.7)" && \
