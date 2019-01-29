@@ -37,6 +37,11 @@ def get_kernel_code_name(kernel_name):
     return kernel_code_name
 
 
+def linux_lldb_python_lib_subdir():
+    return 'lib/python%d.%d/site-packages' % (sys.version_info[0],
+                                              sys.version_info[1])
+
+
 def make_kernel_env(args):
     """Returns environment varialbes that tell the kernel where things are."""
 
@@ -46,7 +51,8 @@ def make_kernel_env(args):
     if args.swift_toolchain is not None:
         # Use a prebuilt Swift toolchain.
         if platform.system() == 'Linux':
-            kernel_env['PYTHONPATH'] = '%s/usr/lib/python2.7/site-packages' % args.swift_toolchain
+            kernel_env['PYTHONPATH'] = '%s/usr/%s' % (
+                args.swift_toolchain, linux_lldb_python_lib_subdir())
             kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/linux' % args.swift_toolchain
             kernel_env['REPL_SWIFT_PATH'] = '%s/usr/bin/repl_swift' % args.swift_toolchain
 
@@ -72,7 +78,8 @@ def make_kernel_env(args):
         swift_build_dir = '%s/swift-linux-x86_64' % args.swift_build
         lldb_build_dir = '%s/lldb-linux-x86_64' % args.swift_build
 
-        kernel_env['PYTHONPATH'] = '%s/lib/python2.7/site-packages' % lldb_build_dir
+        kernel_env['PYTHONPATH'] = '%s/%s' % (lldb_build_dir,
+                                              linux_lldb_python_lib_subdir())
         kernel_env['LD_LIBRARY_PATH'] = '%s/lib/swift/linux' % swift_build_dir
         kernel_env['REPL_SWIFT_PATH'] = '%s/bin/repl_swift' % lldb_build_dir
 
@@ -109,7 +116,7 @@ def make_kernel_env(args):
 def validate_kernel_env(kernel_env):
     """Validates that the env vars refer to things that actually exist."""
 
-    if not os.path.isdir(kernel_env['PYTHONPATH']):
+    if not os.path.isfile(kernel_env['PYTHONPATH'] + '/lldb/_lldb.so'):
         raise Exception('lldb python libs not found at %s' %
                         kernel_env['PYTHONPATH'])
     if not os.path.isdir(kernel_env['LD_LIBRARY_PATH']):
@@ -141,10 +148,10 @@ def main():
     script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
     kernel_json = {
         'argv': [
-                args.python_interpreter,
-                '%s/swift_kernel.py' % script_dir,
-                '-f',
-                '{connection_file}',
+            sys.executable,
+            '%s/swift_kernel.py' % script_dir,
+            '-f',
+            '{connection_file}',
         ],
         'display_name': args.kernel_name,
         'language': 'swift',
@@ -206,12 +213,6 @@ def parse_args():
         help='Path to sourcekitten binary (enables code completion)')
 
     parser.add_argument(
-        '--python-interpreter',
-        help='Path to a python interpreter to run the kernel. Must be ' +
-             'python2. If you omit this, we will use the interpreter ' +
-             'that is running register.py.')
-
-    parser.add_argument(
         '--swift-python-version',
         help='direct Swift\'s Python interop library to use this version of ' +
              'Python')
@@ -231,9 +232,6 @@ def parse_args():
         args.xcode_path = os.path.realpath(args.xcode_path)
     if args.sourcekitten is not None:
         args.sourcekitten = os.path.realpath(args.sourcekitten)
-    if args.python_interpreter is None:
-        args.python_interpreter = sys.executable
-    args.python_interpreter = os.path.realpath(args.python_interpreter)
     if args.swift_python_version is not None and \
             args.swift_python_library is not None:
         raise Exception('Should not specify --swift-python-version and ' +
