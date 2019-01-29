@@ -48,18 +48,20 @@ def make_kernel_env(args):
     kernel_env = {}
     kernel_env['LLDB_USE_SERIALIZATION'] = '1'
 
+    pythonpath_entries = []
+
     if args.swift_toolchain is not None:
         # Use a prebuilt Swift toolchain.
         if platform.system() == 'Linux':
-            kernel_env['PYTHONPATH'] = '%s/usr/%s' % (
-                args.swift_toolchain, linux_lldb_python_lib_subdir())
+            pythonpath_entries.append('%s/usr/%s' % (
+                args.swift_toolchain, linux_lldb_python_lib_subdir()))
             kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/linux' % args.swift_toolchain
             kernel_env['REPL_SWIFT_PATH'] = '%s/usr/bin/repl_swift' % args.swift_toolchain
 
             # Points SourceKitten at SourceKit.
             kernel_env['LINUX_SOURCEKIT_LIB_PATH'] = '%s/usr/lib' % args.swift_toolchain
         elif platform.system() == 'Darwin':
-            kernel_env['PYTHONPATH'] = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/Python' % args.swift_toolchain
+            pythonpath_entries.append('%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/Python' % args.swift_toolchain)
             kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/macosx' % args.swift_toolchain
             kernel_env['REPL_SWIFT_PATH'] = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/repl_swift' % args.swift_toolchain
 
@@ -78,8 +80,8 @@ def make_kernel_env(args):
         swift_build_dir = '%s/swift-linux-x86_64' % args.swift_build
         lldb_build_dir = '%s/lldb-linux-x86_64' % args.swift_build
 
-        kernel_env['PYTHONPATH'] = '%s/%s' % (lldb_build_dir,
-                                              linux_lldb_python_lib_subdir())
+        pythonpath_entries.append('%s/%s' % (lldb_build_dir,
+                                             linux_lldb_python_lib_subdir()))
         kernel_env['LD_LIBRARY_PATH'] = '%s/lib/swift/linux' % swift_build_dir
         kernel_env['REPL_SWIFT_PATH'] = '%s/bin/repl_swift' % lldb_build_dir
 
@@ -95,7 +97,7 @@ def make_kernel_env(args):
         lldb_framework = '%s/Contents/SharedFrameworks/LLDB.framework' % args.xcode_path
         xcode_toolchain = '%s/Contents/Developer/Toolchains/XcodeDefault.xctoolchain' % args.xcode_path
 
-        kernel_env['PYTHONPATH'] = '%s/Resources/Python' % lldb_framework
+        pythonpath_entries.append('%s/Resources/Python' % lldb_framework)
         kernel_env['REPL_SWIFT_PATH'] = '%s/Resources/repl_swift' % lldb_framework
         kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/macosx' % xcode_toolchain
 
@@ -110,15 +112,25 @@ def make_kernel_env(args):
     if args.swift_python_library is not None:
         kernel_env['PYTHON_LIBRARY'] = args.swift_python_library
 
+    if args.kernel_pythonpath is not None:
+        pythonpath_entries.append(args.kernel_pythonpath)
+    kernel_env['PYTHONPATH'] = os.pathsep.join(pythonpath_entries)
+
     return kernel_env
 
 
 def validate_kernel_env(kernel_env):
     """Validates that the env vars refer to things that actually exist."""
 
-    if not os.path.isfile(kernel_env['PYTHONPATH'] + '/lldb/_lldb.so'):
+    lldb_python_libs_found = False
+    for pythonpath in kernel_env['PYTHONPATH'].split(os.pathsep):
+        if os.path.isfile(pythonpath + '/lldb/_lldb.so'):
+            lldb_python_libs_found = True
+            break
+    if not lldb_python_libs_found:
         raise Exception('lldb python libs not found at %s' %
                         kernel_env['PYTHONPATH'])
+
     if not os.path.isdir(kernel_env['LD_LIBRARY_PATH']):
         raise Exception('swift libs not found at %s' %
                         kernel_env['LD_LIBRARY_PATH'])
@@ -220,6 +232,10 @@ def parse_args():
         '--swift-python-library',
         help='direct Swift\'s Python interop library to use this Python ' +
              'library')
+
+    parser.add_argument(
+        '--kernel-pythonpath',
+        help='extra entry for the kernel PYTHONPATH')
 
     args = parser.parse_args()
     if args.sys_prefix:
