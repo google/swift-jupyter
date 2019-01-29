@@ -1,6 +1,7 @@
 import unittest
 import jupyter_kernel_test
 import sys
+import time
 
 # This superclass defines tests but does not run them against kernels, so that
 # we can subclass this to run the same tests against different kernels.
@@ -77,6 +78,37 @@ class SwiftKernelTests:
         self.assertIn('a() at <Cell 2>:2:24', traceback[2])
         self.assertIn('b() at <Cell 3>:4:24', traceback[3])
         self.assertIn('main at <Cell 4>:2:13', traceback[4])
+
+    def test_interrupt_execution(self):
+        msg_id = self.kc.execute(code="""while true {}""")
+
+        # Give the kernel some time to actually start execution, because it
+        # ignores interrupts that arrive when it's not actually executing.
+        time.sleep(1)
+
+        msg = self.kc.iopub_channel.get_msg(timeout=1)
+        self.assertEqual(msg['content']['execution_state'], 'busy')
+
+        self.km.interrupt_kernel()
+        reply = self.kc.get_shell_msg(timeout=1)
+        self.assertEqual(reply['content']['status'], 'error')
+
+        while True:
+            msg = self.kc.iopub_channel.get_msg(timeout=1)
+            if msg['msg_type'] == 'status':
+                self.assertEqual(msg['content']['execution_state'], 'idle')
+                break
+
+        # Check that the kernel can still execute things after handling an
+        # interrupt.
+        reply, output_msgs = self.execute_helper(
+            code="""print("Hello world")""")
+        self.assertEqual(reply['content']['status'], 'ok')
+        for msg in output_msgs:
+            if msg['msg_type'] == 'stream' and \
+                    msg['content']['name'] == 'stdout':
+                self.assertIn('Hello world', msg['content']['text'])
+                break
 
 
 class SwiftKernelTestsPython27(SwiftKernelTests,

@@ -14,13 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tempfile
 import json
 import lldb
-import subprocess
-import sys
 import os
 import re
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
 
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
@@ -207,6 +209,19 @@ class SwiftError(ExecutionResultError):
                 repr(self.description()))
 
 
+class SIGINTHandler(threading.Thread):
+    """Interrupts currently-executing code whenever the process receives a
+       SIGINT."""
+    def __init__(self, kernel):
+        super(SIGINTHandler, self).__init__()
+        self.kernel = kernel
+
+    def run(self):
+        while True:
+            signal.sigwait([signal.SIGINT])
+            self.kernel.process.SendAsyncInterrupt()
+
+
 class SwiftKernel(Kernel):
     implementation = 'SwiftKernel'
     implementation_version = '0.1'
@@ -225,6 +240,7 @@ class SwiftKernel(Kernel):
         self._init_completer()
         self._init_kernel_communicator()
         self._init_int_bitwidth()
+        self._init_sigint_handler()
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
@@ -318,6 +334,10 @@ class SwiftKernel(Kernel):
             raise Exception('Expected value from Int.bitWidth, but got: %s' %
                             result)
         self._int_bitwidth = int(result.result.description)
+
+    def _init_sigint_handler(self):
+        self.sigint_handler = SIGINTHandler(self)
+        self.sigint_handler.start()
 
     def _file_name_for_source_location(self):
         return '<Cell %d>' % self.execution_count
@@ -612,6 +632,11 @@ class SwiftKernel(Kernel):
         }
 
 if __name__ == '__main__':
+    # Jupyter sends us SIGINT when the user requests execution interruption.
+    # Here, we block all threads from receiving the SIGINT, so that we can
+    # handle it in a specific handler thread.
+    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGINT])
+
     from ipykernel.kernelapp import IPKernelApp
     # We pass the kernel name as a command-line arg, since Jupyter gives those
     # highest priority (in particular overriding any system-wide config).
