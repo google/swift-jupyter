@@ -26,6 +26,8 @@ import threading
 
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
+from tornado import gen
+from tornado.ioloop import PeriodicCallback
 
 
 class Completer:
@@ -159,23 +161,18 @@ class ExecutionResultError(ExecutionResult):
 
 class SuccessWithoutValue(ExecutionResultSuccess):
     """The code executed successfully, and did not produce a value."""
-    def __init__(self, stdout):
-        self.stdout = stdout # str
-
     def __repr__(self):
-        return 'SuccessWithoutValue(stdout=%s)' % repr(self.stdout)
+        return 'SuccessWithoutValue()'
 
 
 class SuccessWithValue(ExecutionResultSuccess):
     """The code executed successfully, and produced a value."""
-    def __init__(self, stdout, result):
-        self.stdout = stdout # str
+    def __init__(self, result):
         self.result = result # SBValue
 
     def __repr__(self):
-        return 'SuccessWithValue(stdout=%s, result=%s, description=%s)' % (
-                repr(self.stdout), repr(self.result),
-                repr(self.result.description))
+        return 'SuccessWithValue(result=%s, description=%s)' % (
+            repr(self.result), repr(self.result.description))
 
 
 class PreprocessorError(ExecutionResultError):
@@ -196,17 +193,15 @@ class PreprocessorException(Exception):
 
 class SwiftError(ExecutionResultError):
     """There was a compile or runtime error."""
-    def __init__(self, stdout, result):
-        self.stdout = stdout # str
+    def __init__(self, result):
         self.result = result # SBValue
 
     def description(self):
         return self.result.error.description
 
     def __repr__(self):
-        return 'SwiftError(stdout=%s, result=%s, description=%s)' % (
-                repr(self.stdout), repr(self.result),
-                repr(self.description()))
+        return 'SwiftError(result=%s, description=%s)' % (
+            repr(self.result), repr(self.description()))
 
 
 class SIGINTHandler(threading.Thread):
@@ -402,16 +397,15 @@ class SwiftKernel(Kernel):
         codeWithLocationDirective = locationDirective + '\n' + code
         result = self.target.EvaluateExpression(
                 codeWithLocationDirective, self.expr_opts)
-        stdout = ''.join([buf for buf in self._get_stdout()])
 
         if result.error.type == lldb.eErrorTypeInvalid:
             self.completer.record_successful_execution(code)
-            return SuccessWithValue(stdout, result)
+            return SuccessWithValue(result)
         elif result.error.type == lldb.eErrorTypeGeneric:
             self.completer.record_successful_execution(code)
-            return SuccessWithoutValue(stdout)
+            return SuccessWithoutValue()
         else:
-            return SwiftError(stdout, result)
+            return SwiftError(result)
 
     def _get_stdout(self):
         while True:
@@ -526,32 +520,48 @@ class SwiftKernel(Kernel):
         self.send_response(self.iopub_socket, 'error', error_message)
         return error_message
 
+    def _get_and_send_stdout(self):
+        stdout = ''.join([buf for buf in self._get_stdout()])
+        if len(stdout) > 0:
+            self.execution_has_stdout = True
+            self.send_response(self.iopub_socket, 'stream', {
+                'name': 'stdout',
+                'text': stdout
+            })
+
+    def _execute_cell(self, code):
+        self._set_parent_message()
+        result = self._preprocess_and_execute(code)
+        if isinstance(result, ExecutionResultSuccess):
+            self._after_successful_execution()
+        return result
+
+    @gen.coroutine
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
+        # Set up a periodic callback to collect stdout.
+        self.execution_has_stdout = False
+        execution_stdout_callback = PeriodicCallback(self._get_and_send_stdout,
+                                                     callback_time=100)
+        execution_stdout_callback.start()
+
+        # Execute the cell, handle unexpected exceptions, and make sure to
+        # always clean up the stdout collection callback.
         try:
-            self._set_parent_message()
+            result = yield self.io_loop.run_in_executor(None,
+                                                        self._execute_cell,
+                                                        code)
         except Exception as e:
-            return self._send_exception_report('_set_parent_message', e)
+            return self._send_exception_report('_execute_cell', e)
+        finally:
+            execution_stdout_callback.stop()
 
-        try:
-            result = self._preprocess_and_execute(code)
-        except Exception as e:
-            return self._send_exception_report('_preprocess_and_execute', e)
+            # Send any remaining stdout to the client in case there was stdout
+            # since the last time the periodic callback triggered.
+            self._get_and_send_stdout()
 
-        if isinstance(result, ExecutionResultSuccess):
-            try:
-                self._after_successful_execution()
-            except Exception as e:
-                return self._send_exception_report(
-                    '_after_successful_execution', e)
-
-        # Send stdout, values/errors and status to the client.
+        # Send values/errors and status to the client.
         if isinstance(result, SuccessWithValue):
-            if hasattr(result, 'stdout') and len(result.stdout) > 0:
-                self.send_response(self.iopub_socket, 'stream', {
-                    'name': 'stdout',
-                    'text': result.stdout
-                })
             self.send_response(self.iopub_socket, 'execute_result', {
                 'execution_count': self.execution_count,
                 'data': {
@@ -566,11 +576,6 @@ class SwiftKernel(Kernel):
                 'user_expressions': {}
             }
         elif isinstance(result, SuccessWithoutValue):
-            if hasattr(result, 'stdout') and len(result.stdout) > 0:
-                self.send_response(self.iopub_socket, 'stream', {
-                    'name': 'stdout',
-                    'text': result.stdout
-                })
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
@@ -578,35 +583,13 @@ class SwiftKernel(Kernel):
                 'user_expressions': {}
             }
         elif isinstance(result, ExecutionResultError):
-            if hasattr(result, 'stdout') and len(result.stdout) > 0:
-                # When there is stdout, it is a runtime error. Therefore,
-                # parse the stdout to get the error message and query the LLDB
-                # APIs for the stack trace.
-                #
-                # Note that the stdout-parsing logic assumes that the stdout
-                # for a runtime error always has this form:
-                #
-                #   <execution stdout from before the error happened>
-                #   <error message>
-                #   Current stack trace:
-                #     <a stack trace>
-                #
-                # It would be nicer if we could get the runtime error message
-                # from somewhere other than stdout, so that we don't need
-                # fragile text processing to parse out the part of the error
-                # message that we are interested in.
+            if self.execution_has_stdout:
+                # When there is stdout, it is a runtime error. Stdout, which we
+                # have already sent to the client, contains the error message
+                # (plus some other ugly traceback that we should eventually
+                # figure out how to suppress), so this block of code only needs
+                # to add a traceback.
                 traceback = []
-
-                # First, put the error message in the traceback. The error
-                # message includes a useless stack trace (it doesn't have
-                # source line info), so do not include the useles stack trace.
-                for line in result.stdout.split('\n'):
-                    if line.startswith('Current stack trace'):
-                        break
-                    traceback.append(line)
-
-                # Next, put a useful stack trace with source line info in the
-                # traceback.
                 traceback.append('Current stack trace:')
                 traceback += [
                     '\t%s' % frame

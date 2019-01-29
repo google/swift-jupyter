@@ -62,22 +62,27 @@ class SwiftKernelTests:
             func a() { fatalError("oops") }
         """)
         self.assertEqual(reply['content']['status'], 'ok')
+        a_cell = reply['content']['execution_count']
         reply, output_msgs = self.execute_helper(code="""
             print("hello")
             print("world")
             func b() { a() }
         """)
         self.assertEqual(reply['content']['status'], 'ok')
+        b_cell = reply['content']['execution_count']
         reply, output_msgs = self.execute_helper(code="""
             b()
         """)
         self.assertEqual(reply['content']['status'], 'error')
-        traceback = output_msgs[0]['content']['traceback']
-        self.assertIn('Fatal error: oops', traceback[0])
-        self.assertIn('Current stack trace:', traceback[1])
-        self.assertIn('a() at <Cell 2>:2:24', traceback[2])
-        self.assertIn('b() at <Cell 3>:4:24', traceback[3])
-        self.assertIn('main at <Cell 4>:2:13', traceback[4])
+        call_cell = reply['content']['execution_count']
+
+        stdout = output_msgs[0]['content']['text']
+        self.assertIn('Fatal error: oops', stdout)
+        traceback = output_msgs[1]['content']['traceback']
+        self.assertIn('Current stack trace:', traceback[0])
+        self.assertIn('a() at <Cell %d>:2:24' % a_cell, traceback[1])
+        self.assertIn('b() at <Cell %d>:4:24' % b_cell, traceback[2])
+        self.assertIn('main at <Cell %d>:2:13' % call_cell, traceback[3])
 
     def test_interrupt_execution(self):
         msg_id = self.kc.execute(code="""while true {}""")
@@ -108,6 +113,35 @@ class SwiftKernelTests:
             if msg['msg_type'] == 'stream' and \
                     msg['content']['name'] == 'stdout':
                 self.assertIn('Hello world', msg['content']['text'])
+                break
+
+    def test_async_stdout(self):
+        # Test that we receive stdout while execution is happening by printing
+        # something and then entering an infinite loop.
+        msg_id = self.kc.execute(code="""
+            print("some stdout")
+            while true {}
+        """)
+
+        # Give the kernel some time to send out the stdout.
+        time.sleep(1)
+
+        # Check that the kernel has sent out the stdout.
+        while True:
+            msg = self.kc.iopub_channel.get_msg(timeout=1)
+            if msg['msg_type'] == 'stream' and \
+                    msg['content']['name'] == 'stdout':
+                self.assertIn('some stdout', msg['content']['text'])
+                break
+
+        # Interrupt execution and consume all messages, so that subsequent
+        # tests can run. (All the tests in this class run against the same
+        # instance of the kernel.)
+        self.km.interrupt_kernel()
+        self.kc.get_shell_msg(timeout=1)
+        while True:
+            msg = self.kc.iopub_channel.get_msg(timeout=1)
+            if msg['msg_type'] == 'status':
                 break
 
 
