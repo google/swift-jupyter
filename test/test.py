@@ -152,7 +152,7 @@ class SwiftKernelTestsPython27(SwiftKernelTests,
 
 class SwiftKernelTestsPython36(SwiftKernelTests,
                                jupyter_kernel_test.KernelTests):
-    kernel_name = 'swift-with-python-3.6'
+    kernel_name = 'swift'
 
 
 if __name__ == '__main__':

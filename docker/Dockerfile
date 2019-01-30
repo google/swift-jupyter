@@ -61,7 +61,7 @@ RUN pip3 install \
 
 # Register the kernel with jupyter
 RUN python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-version 2.7 --kernel-name "Swift (with Python 2.7)" && \
-    python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-library /usr/lib/x86_64-linux-gnu/libpython3.6m.so --kernel-name "Swift (with Python 3.6)"
+    python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-library /usr/lib/x86_64-linux-gnu/libpython3.6m.so --kernel-name "Swift"
 
 # Configure cuda
 RUN echo "/usr/local/cuda-9.2/targets/x86_64-linux/lib/stubs" > /etc/ld.so.conf.d/cuda-9.2-stubs.conf && \
