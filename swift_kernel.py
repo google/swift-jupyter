@@ -28,119 +28,6 @@ from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
 
 
-class Completer:
-    """Serves code-completion requests.
-
-    This class is stateful because it needs to record the execution history
-    to know how to complete using things that the user has declared and
-    imported.
-
-    There is an "intentional" bug in this class: If the user re-declares
-    something, code-completion only sees the first declaration because the
-    history contains both declarations and SourceKit seems to handle this by
-    ignoring the second declaration. Fixing this bug might require significant
-    changes to the code-completion approach. (For example, stop using SourceKit
-    and start using the Swift REPL's code-completion implementation.)
-    """
-
-    def __init__(self, sourcekitten_binary, sourcekitten_env, log):
-        """
-        :param sourcekitten_binary: Path to sourcekitten binary.
-        :param sourcekitten_env: Environment variables for sourcekitten.
-        :param log: A logger with `.error` and `.warning` methods.
-        """
-        self.sourcekitten_binary = sourcekitten_binary
-        self.sourcekitten_env = sourcekitten_env
-        self.log = log
-        self.successful_execution_history = []
-
-    def record_successful_execution(self, code):
-        """Call this whenever the kernel successfully executes a cell.
-        :param code: The cell's code, as a python "unicode" string.
-        """
-        self.successful_execution_history.append(code)
-
-    def complete(self, code, pos):
-        """Returns code-completion results for `code` at `pos`.
-        :param code: The code in the current cell, as a python "unicode"
-                     string.
-        :param pos: The number of unicode code points before the cursor.
-
-        Returns an array of completions in SourceKit completion format.
-
-        If there are any errors, ouputs warnings to the logger and returns an
-        empty array.
-        """
-
-        if self.sourcekitten_binary is None:
-          return []
-
-        # Write all the successful execution history to a file that sourcekitten
-        # can read. We do this so that sourcekitten can see all the decls and
-        # imports that happened in previously-executed cells.
-        codefile = tempfile.NamedTemporaryFile(prefix='jupyter-', suffix='.swift', delete=False)
-        for index, execution in enumerate(self.successful_execution_history):
-            codefile.write('// History %d\n' % index)
-            codefile.write(execution.encode('utf8'))
-            codefile.write('\n\n')
-
-        # Write the code that the user is trying to complete to the file.
-        codefile.write('// Current cell\n')
-        code_offset = codefile.tell()
-        codefile.write(code.encode('utf8'))
-        codefile.close()
-
-        # Sourcekitten wants the offset in bytes.
-        sourcekitten_offset = code_offset + len(code[0:pos].encode('utf8'))
-
-        # Ask sourcekitten for a completion.
-        args = (self.sourcekitten_binary, 'complete', '--file', codefile.name,
-                '--offset', str(sourcekitten_offset))
-        process = subprocess.Popen(args, env=self.sourcekitten_env,
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
-        output, err = process.communicate()
-
-        # Suppress errors that say "compiler is in code completion mode",
-        # because sourcekitten emits them even when everything is okay.
-        # Log other errors to the logger.
-        errlines = [
-            '\t' + errline
-            for errline
-            in err.split('\n')
-            if len(errline) > 0
-            if errline.find('compiler is in code completion mode') == -1
-        ]
-        if len(errlines) > 0:
-            self.log.warning('sourcekitten completion stderr:\n%s' %
-                             '\n'.join(errlines))
-
-        # Parse sourcekitten's output.
-        try:
-            completions = json.loads(output)
-        except:
-            self.log.error(
-              'could not parse sourcekitten output as JSON\n\t'
-              'sourcekitten command was: %s\n\t'
-              'sourcekitten output was: %s\n\t'
-              'try running the above sourcekitten command with the '
-              'following environment variables: %s to get a more '
-              'detailed error message' % (
-                  ' '.join(args), output,
-                  dict(self.sourcekitten_env, SOURCEKIT_LOGGING=3)))
-            return []
-
-        if len(completions) == 0:
-            self.log.warning('sourcekitten did not return any completions')
-
-        # We intentionally do not clean up the temporary file until a success,
-        # so that you can use the temporary file for debugging when there are
-        # exceptions.
-        os.remove(codefile.name)
-
-        return completions
-
-
 class ExecutionResult:
     """Base class for the result of executing code."""
     pass
@@ -268,8 +155,17 @@ class SwiftKernel(Kernel):
 
     def __init__(self, **kwargs):
         super(SwiftKernel, self).__init__(**kwargs)
+
+        # Whether to do code completion. (Code completion currently crashes
+        # the kernel a lot so it is opt-in for now).
+        self.completion_enabled = False
+
+        # Accumulate successfully-executed code, for the completer. This
+        # accumulates code even when completion is disabled, so that completion
+        # works if it's enabled later.
+        self.accumulated_code = ''
+
         self._init_repl_process()
-        self._init_completer()
         self._init_kernel_communicator()
         self._init_int_bitwidth()
         self._init_sigint_handler()
@@ -315,9 +211,9 @@ class SwiftKernel(Kernel):
             raise Exception('Could not launch process')
 
         self.expr_opts = lldb.SBExpressionOptions()
-        swift_language = lldb.SBLanguageRuntime.GetLanguageTypeFromString(
+        self.swift_language = lldb.SBLanguageRuntime.GetLanguageTypeFromString(
             'swift')
-        self.expr_opts.SetLanguage(swift_language)
+        self.expr_opts.SetLanguage(self.swift_language)
         self.expr_opts.SetREPLMode(True)
         self.expr_opts.SetUnwindOnError(False)
         self.expr_opts.SetGenerateDebugInfo(True)
@@ -327,19 +223,6 @@ class SwiftKernel(Kernel):
         self.expr_opts.SetTimeoutInMicroSeconds(0)
 
         self.main_thread = self.process.GetThreadAtIndex(0)
-
-    def _init_completer(self):
-      self.completer = Completer(
-          os.environ.get('SOURCEKITTEN'),
-          {
-              key: os.environ[key]
-              for key in [
-                  'LINUX_SOURCEKIT_LIB_PATH',
-                  'XCODE_DEFAULT_TOOLCHAIN_OVERRIDE'
-              ]
-              if key in os.environ
-          },
-          self.log)
 
     def _init_kernel_communicator(self):
         result = self._preprocess_and_execute(
@@ -388,10 +271,29 @@ class SwiftKernel(Kernel):
                 self._preprocess_line(i, line) for i, line in enumerate(lines)]
         return '\n'.join(preprocessed_lines)
 
+    def _handle_enable_completion(self):
+        if not hasattr(self.target, 'CompleteCode'):
+            self.send_response(self.iopub_socket, 'stream', {
+                'name': 'stdout',
+                'text': 'Completion NOT enabled because toolchain does not ' +
+                        'have CompleteCode API.\n'
+            })
+            return
+
+        self.completion_enabled = True
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Completion enabled!\n'
+        })
+
     def _preprocess_line(self, line_index, line):
         include_match = re.match(r'^\s*%include (.*)$', line)
         if include_match is not None:
             return self._read_include(line_index, include_match.group(1))
+        enable_completion_match = re.match(r'^\s*%enableCompletion\s*$', line)
+        if enable_completion_match is not None:
+            self._handle_enable_completion()
+            return ''
         return line
 
     def _read_include(self, line_index, rest_of_line):
@@ -436,12 +338,16 @@ class SwiftKernel(Kernel):
                 codeWithLocationDirective, self.expr_opts)
 
         if result.error.type == lldb.eErrorTypeInvalid:
-            self.completer.record_successful_execution(code)
+            self.accumulated_code += codeWithLocationDirective + '\n'
             return SuccessWithValue(result)
         elif result.error.type == lldb.eErrorTypeGeneric:
-            self.completer.record_successful_execution(code)
+            self.accumulated_code += codeWithLocationDirective + '\n'
             return SuccessWithoutValue()
         else:
+            # TODO: We should accumulate code if there is a runtime error. But
+            # I don't know how to distinguish between compile and runtime error
+            # here.  Note that this TODO is throwaway work, because I intend to
+            # make the completer work without accumulated code soon.
             return SwiftError(result)
 
     def _after_successful_execution(self):
@@ -619,10 +525,21 @@ class SwiftKernel(Kernel):
             return error_message
 
     def do_complete(self, code, cursor_pos):
-        completions = self.completer.complete(code, cursor_pos)
+        if not self.completion_enabled:
+            return
+
+        code_to_cursor = code[:cursor_pos]
+        sbresponse = self.target.CompleteCode(
+            self.swift_language, None, self.accumulated_code + code_to_cursor)
+        prefix = sbresponse.GetPrefix()
+        insertable_matches = []
+        for i in range(sbresponse.GetNumMatches()):
+            sbmatch = sbresponse.GetMatchAtIndex(i)
+            insertable_matches.append(prefix + sbmatch.GetInsertable())
         return {
-            'matches': [completion['sourcetext'] for completion in completions],
-            'cursor_start': cursor_pos,
+            'status': 'ok',
+            'matches': insertable_matches,
+            'cursor_start': cursor_pos - len(prefix),
             'cursor_end': cursor_pos,
         }
 
