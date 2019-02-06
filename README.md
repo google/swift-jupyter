@@ -11,7 +11,6 @@ with the [Swift for TensorFlow](https://github.com/tensorflow/swift) project.
 
 Operating system:
 
-* macOS 10.13.5 or later, with Xcode 10.0 beta or later; OR
 * Ubuntu 18.04 (64-bit); OR
 * other operating systems may work, but you will have to build Swift from
   sources.
