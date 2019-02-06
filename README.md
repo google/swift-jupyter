@@ -23,15 +23,7 @@ Dependencies:
 
 ### Installation
 
-swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently,
-most prebuilt toolchains do not have LLDB Python3 support. Therefore, you
-should:
-
-* build a Swift toolchain with LLDB Python3 support yourself from sources (see
-  the section "Building toolchain with LLDB Python3 support"); OR
-* use a
-  [previous version of swift-jupyter](https://github.com/google/swift-jupyter/tree/python2-compatible)
-  that is compatible with Python2 LLDB.
+swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/master/Installation.md#pre-built-packages. You can also build a toolchain from sources with LLDB Python3 support: see the below section.
 
 Extract the Swift toolchain somewhere.
 
@@ -54,7 +46,7 @@ jupyter notebook
 
 You should be able to create Swift notebooks. Installation is done!
 
-### Building toolchain with LLDB Python3 support
+### (optional) Building toolchain with LLDB Python3 support
 
 Follow the
 [Building Swift for TensorFlow](https://github.com/apple/swift/tree/tensorflow#building-swift-for-tensorflow)
