@@ -41,6 +41,30 @@ class SwiftKernelTests:
         self.assertEqual(reply['content']['status'], 'ok')
         self.assertIn('image/png', output_msgs[0]['content']['data'])
 
+    def test_extensions(self):
+        reply, output_msgs = self.execute_helper(code="""
+           struct Foo{}
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        reply, output_msgs = self.execute_helper(code="""
+           extension Foo { func f() -> Int { return 1 } }
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        reply, output_msgs = self.execute_helper(code="""
+           print("Value of Foo().f() is", Foo().f())
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        self.assertIn("Value of Foo().f() is 1", output_msgs[0]['content']['text'])
+        reply, output_msgs = self.execute_helper(code="""
+        extension Foo { func f() -> Int { return 2 } }
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        reply, output_msgs = self.execute_helper(code="""
+           print("Value of Foo().f() is", Foo().f())
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        self.assertIn("Value of Foo().f() is 2", output_msgs[0]['content']['text'])
+
     def test_gradient_across_cells_error(self):
         reply, output_msgs = self.execute_helper(code="""
            func square(_ x : Float) -> Float { return x * x }
