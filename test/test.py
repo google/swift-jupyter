@@ -41,8 +41,27 @@ class SwiftKernelTests:
         self.assertEqual(reply['content']['status'], 'ok')
         self.assertIn('image/png', output_msgs[0]['content']['data'])
 
+    def test_gradient_across_cells_error(self):
+        reply, output_msgs = self.execute_helper(code="""
+           func square(_ x : Float) -> Float { return x * x }
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        reply, output_msgs = self.execute_helper(code="""
+           print("5^2 is", square(5))
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        self.assertIn("5^2 is 25.0", output_msgs[0]['content']['text'])
+        reply, output_msgs = self.execute_helper(code="""
+           print("gradient of square at 5 is", gradient(at: 5, in: square))
+        """)
+        self.assertEqual(reply['content']['status'], 'error')
+        self.assertIn("note: cannot differentiate an external function "\
+                      "that has not been marked '@differentiable'",
+                      reply['content']['traceback'][0])
+
     def test_gradient_across_cells(self):
         reply, output_msgs = self.execute_helper(code="""
+           @differentiable
            func square(_ x : Float) -> Float { return x * x }
         """)
         self.assertEqual(reply['content']['status'], 'ok')
