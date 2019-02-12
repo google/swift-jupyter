@@ -160,11 +160,6 @@ class SwiftKernel(Kernel):
         # the kernel a lot so it is opt-in for now).
         self.completion_enabled = False
 
-        # Accumulate successfully-executed code, for the completer. This
-        # accumulates code even when completion is disabled, so that completion
-        # works if it's enabled later.
-        self.accumulated_code = ''
-
         self._init_repl_process()
         self._init_kernel_communicator()
         self._init_int_bitwidth()
@@ -338,16 +333,10 @@ class SwiftKernel(Kernel):
                 codeWithLocationDirective, self.expr_opts)
 
         if result.error.type == lldb.eErrorTypeInvalid:
-            self.accumulated_code += codeWithLocationDirective + '\n'
             return SuccessWithValue(result)
         elif result.error.type == lldb.eErrorTypeGeneric:
-            self.accumulated_code += codeWithLocationDirective + '\n'
             return SuccessWithoutValue()
         else:
-            # TODO: We should accumulate code if there is a runtime error. But
-            # I don't know how to distinguish between compile and runtime error
-            # here.  Note that this TODO is throwaway work, because I intend to
-            # make the completer work without accumulated code soon.
             return SwiftError(result)
 
     def _after_successful_execution(self):
@@ -530,7 +519,7 @@ class SwiftKernel(Kernel):
 
         code_to_cursor = code[:cursor_pos]
         sbresponse = self.target.CompleteCode(
-            self.swift_language, None, self.accumulated_code + code_to_cursor)
+            self.swift_language, None, code_to_cursor)
         prefix = sbresponse.GetPrefix()
         insertable_matches = []
         for i in range(sbresponse.GetNumMatches()):
