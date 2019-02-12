@@ -535,7 +535,10 @@ class SwiftKernel(Kernel):
         insertable_matches = []
         for i in range(sbresponse.GetNumMatches()):
             sbmatch = sbresponse.GetMatchAtIndex(i)
-            insertable_matches.append(prefix + sbmatch.GetInsertable())
+            insertable_match = prefix + sbmatch.GetInsertable()
+            if insertable_match.startswith("_"):
+                continue
+            insertable_matches.append(insertable_match)
         return {
             'status': 'ok',
             'matches': insertable_matches,
