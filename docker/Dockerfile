@@ -48,16 +48,8 @@ RUN pip3 install -r requirements.txt
 
 # Install some python libraries that are useful to call from swift. Since
 # swift can interoperate with python2 and python3, install them in both.
-RUN pip2 install \
-        matplotlib \
-        numpy \
-        pandas \
-	ipykernel
-RUN pip3 install \
-        matplotlib \
-        numpy \
-        pandas \
-	ipykernel
+RUN pip2 install -r requirements_py_graphics.txt
+RUN pip3 install -r requirements_py_graphics.txt
 
 # Register the kernel with jupyter
 RUN python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-version 2.7 --kernel-name "Swift (with Python 2.7)" && \

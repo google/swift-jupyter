@@ -33,6 +33,7 @@ it:
 python3 -m venv venv
 . venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements_py_graphics.txt
 python register.py --sys-prefix --swift-toolchain <path to extracted swift toolchain directory>
 ```
 
@@ -85,7 +86,7 @@ The functions of these parameters are:
 
 - `--cap-add SYS_PTRACE` adjusts the privileges with which this container is run, which is required for the Swift REPL.
 
-- `-v <host path>:/notebooks` bind mounts a host directory as a volume where notebooks created in the container will be stored.  If this command is omitted, any notebooks created using the container will not be persisted when the container is stopped. 
+- `-v <host path>:/notebooks` bind mounts a host directory as a volume where notebooks created in the container will be stored.  If this command is omitted, any notebooks created using the container will not be persisted when the container is stopped.
 
 # Usage Instructions
 
@@ -97,14 +98,8 @@ libraries that produce rich output too!)
 
 Prerequisites:
 
-* You must use a Swift toolchain that has Python interop. As of July 2018,
-  only the [Swift for TensorFlow] toolchain has Python interop.
-
-* Install the `ipykernel` Python library, and any other Python libraries
-  that you want output from (such as `matplotlib` or `pandas`) on your
-  system Python. (Do not install them on the virtualenv from the Swift-Jupyter
-  installation instructions. Swift's Python interop talks to your system
-  Python.)
+* You must use a Swift toolchain that has Python interop. As of February 2019,
+  only the Swift for TensorFlow toolchains have Python interop.
 
 After taking care of the prerequisites, run
 `%include "EnableIPythonDisplay.swift"` in your Swift notebook. Now you should
@@ -158,3 +153,32 @@ your cell to the Swift interpreter.
 
 `<filename>` must be relative to the directory containing `swift_kernel.py`.
 We'll probably add more search paths later.
+
+# Running tests
+
+## Locally
+
+Install swift-jupyter locally using the above installation instructions. Now
+you can activate the virtualenv and run the tests:
+
+```
+. venv/bin/activate
+python test/fast_test.py  # Fast tests, should complete in 1-2 min
+python test/all_test_local.py  # Much slower, 10+ min
+python test/all_test_local.py SimpleNotebookTests.test_simple_successful  # Invoke specific test method
+```
+
+You might also be interested in manually invoking the notebook tester on
+specific notebooks. See its `--help` documentation:
+
+```
+python test/notebook_tester.py --help
+```
+
+## In Docker
+
+After building the docker image according to the instructions above,
+
+```
+docker run --cap-add SYS_PTRACE swift-jupyter python3 /swift-jupyter/test/all_test_docker.py
+```
