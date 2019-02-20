@@ -1,7 +1,7 @@
-"""Copy of "all_test_docker.py", for backwards-compatibility with CI scripts
-that call "test.py".
+"""Runs all tests that work in the docker image.
 
-TODO: Delete this after updating CI scripts.
+Specifically, this includes the SwiftKernelTestsPython27 test that requires a
+special kernel named 'swift-with-python-2.7'.
 """
 
 import unittest
