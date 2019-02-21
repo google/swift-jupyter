@@ -23,6 +23,9 @@ class SwiftKernelTestsBase:
 
     code_generate_error = 'varThatIsntDefined'
 
+    def setUp(self):
+        self.flush_channels()
+
     def test_graphics_matplotlib(self):
         reply, output_msgs = self.execute_helper(code="""
             %include "EnableIPythonDisplay.swift"
@@ -189,6 +192,39 @@ class SwiftKernelTestsBase:
             msg = self.kc.iopub_channel.get_msg(timeout=1)
             if msg['msg_type'] == 'status':
                 break
+
+    def test_swift_completion(self):
+        reply, output_msgs = self.execute_helper(code="""
+            func aFunctionToComplete() {}
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+
+        self.kc.complete('aFunctionToC')
+        reply = self.kc.get_shell_msg()
+        self.assertEqual(reply['content']['matches'],
+                         ['aFunctionToComplete()'])
+        self.flush_channels()
+
+        reply, output_msgs = self.execute_helper(code="""
+            %disableCompletion
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+
+        self.kc.complete('aFunctionToC')
+        reply = self.kc.get_shell_msg()
+        self.assertEqual(reply['content']['matches'], [])
+        self.flush_channels()
+
+        reply, output_msgs = self.execute_helper(code="""
+            %enableCompletion
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+
+        self.kc.complete('aFunctionToC')
+        reply = self.kc.get_shell_msg()
+        self.assertEqual(reply['content']['matches'],
+                         ['aFunctionToComplete()'])
+        self.flush_channels()
 
 
 class SwiftKernelTestsPython27(SwiftKernelTestsBase,

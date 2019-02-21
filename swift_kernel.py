@@ -156,14 +156,17 @@ class SwiftKernel(Kernel):
     def __init__(self, **kwargs):
         super(SwiftKernel, self).__init__(**kwargs)
 
-        # Whether to do code completion. (Code completion currently crashes
-        # the kernel a lot so it is opt-in for now).
-        self.completion_enabled = False
-
         self._init_repl_process()
         self._init_kernel_communicator()
         self._init_int_bitwidth()
         self._init_sigint_handler()
+
+        # Whether to do code completion.
+        # We do completion by default when the toolchain has the
+        # SBTarget.CompleteCode API.
+        # The user can disable/enable using "%disableCompletion" and
+        # "%enableCompletion".
+        self.completion_enabled = hasattr(self.target, 'CompleteCode')
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
@@ -266,6 +269,13 @@ class SwiftKernel(Kernel):
                 self._preprocess_line(i, line) for i, line in enumerate(lines)]
         return '\n'.join(preprocessed_lines)
 
+    def _handle_disable_completion(self):
+        self.completion_enabled = False
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Completion disabled!\n'
+        })
+
     def _handle_enable_completion(self):
         if not hasattr(self.target, 'CompleteCode'):
             self.send_response(self.iopub_socket, 'stream', {
@@ -285,10 +295,17 @@ class SwiftKernel(Kernel):
         include_match = re.match(r'^\s*%include (.*)$', line)
         if include_match is not None:
             return self._read_include(line_index, include_match.group(1))
+
+        disable_completion_match = re.match(r'^\s*%disableCompletion\s*$', line)
+        if disable_completion_match is not None:
+            self._handle_disable_completion()
+            return ''
+
         enable_completion_match = re.match(r'^\s*%enableCompletion\s*$', line)
         if enable_completion_match is not None:
             self._handle_enable_completion()
             return ''
+
         return line
 
     def _read_include(self, line_index, rest_of_line):
@@ -515,7 +532,12 @@ class SwiftKernel(Kernel):
 
     def do_complete(self, code, cursor_pos):
         if not self.completion_enabled:
-            return
+            return {
+                'status': 'ok',
+                'matches': [],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+            }
 
         code_to_cursor = code[:cursor_pos]
         sbresponse = self.target.CompleteCode(
