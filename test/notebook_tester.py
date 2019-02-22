@@ -159,7 +159,6 @@ class NotebookTestRunner:
         km, kc = start_new_kernel(kernel_name='swift')
         self.km = km
         self.kc = kc
-        self._execute_code("""%enableCompletion""")
 
     # Runs each code cell in order, asking for completions in each cell along
     # the way. Raises an exception if there is an error or crash. Otherwise,
