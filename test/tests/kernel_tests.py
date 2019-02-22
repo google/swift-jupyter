@@ -5,6 +5,7 @@ import unittest
 import jupyter_kernel_test
 import time
 
+from jupyter_client.manager import start_new_kernel
 
 # This superclass defines tests but does not run them against kernels, so that
 # we can subclass this to run the same tests against different kernels.
@@ -235,3 +236,27 @@ class SwiftKernelTestsPython27(SwiftKernelTestsBase,
 class SwiftKernelTests(SwiftKernelTestsBase,
                        jupyter_kernel_test.KernelTests):
     kernel_name = 'swift'
+
+
+# Tests that a killed `repl_swift` process is handled correctly. We put this
+# in a separate class that instantiates a separate kernel from all the other
+# tests so that killing `repl_swift` does not interfere with other tests.
+class ProcessKilledTest(unittest.TestCase):
+    def test_process_killed(self):
+        km, kc = start_new_kernel(kernel_name='swift')
+        kc.execute("""
+            import Glibc
+            exit(0)
+        """)
+
+        had_error = False
+        while True:
+            reply = kc.get_iopub_msg(timeout=10)
+            if reply['header']['msg_type'] == 'error':
+                had_error = True
+                self.assertEqual(['Process killed'],
+                                 reply['content']['traceback'])
+            if reply['header']['msg_type'] == 'status' and \
+                    reply['content']['execution_state'] == 'idle':
+                break
+        self.assertTrue(had_error)

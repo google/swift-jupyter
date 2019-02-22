@@ -22,10 +22,12 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import threading
 
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
+from tornado import ioloop
 
 
 class ExecutionResult:
@@ -92,6 +94,9 @@ class SwiftError(ExecutionResultError):
 class SIGINTHandler(threading.Thread):
     """Interrupts currently-executing code whenever the process receives a
        SIGINT."""
+
+    daemon = True
+
     def __init__(self, kernel):
         super(SIGINTHandler, self).__init__()
         self.kernel = kernel
@@ -107,6 +112,9 @@ class SIGINTHandler(threading.Thread):
 
 class StdoutHandler(threading.Thread):
     """Collects stdout from the Swift process and sends it to the client."""
+
+    daemon = True
+
     def __init__(self, kernel):
         super(StdoutHandler, self).__init__()
         self.kernel = kernel
@@ -507,6 +515,20 @@ class SwiftKernel(Kernel):
                 'user_expressions': {}
             }
         elif isinstance(result, ExecutionResultError):
+            if not self.process.is_alive:
+                error_message = self._make_error_message(['Process killed'])
+                self.send_response(self.iopub_socket, 'error', error_message)
+
+                # Exit the kernel because there is no way to recover from a
+                # killed process. The UI will tell the user that the kernel has
+                # died and the UI will automatically restart the kernel.
+                # We do the exit in a callback so that this execute request can
+                # cleanly finish before the kernel exits.
+                loop = ioloop.IOLoop.current()
+                loop.add_timeout(time.time()+0.1, loop.stop)
+
+                return error_message
+
             if stdout_handler.had_stdout:
                 # When there is stdout, it is a runtime error. Stdout, which we
                 # have already sent to the client, contains the error message
