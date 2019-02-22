@@ -2,7 +2,7 @@
 
 import unittest
 
-from tests.kernel_tests import SwiftKernelTests
+from tests.kernel_tests import SwiftKernelTests, ProcessKilledTest
 from tests.simple_notebook_tests import *
 
 
