@@ -13,7 +13,7 @@ class TutorialNotebookTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp_dir = tempfile.mkdtemp()
-        git_url = 'https://github.com/tensorflow/swift-tutorials.git'
+        git_url = 'https://github.com/tensorflow/swift.git'
         os.system('git clone %s %s' % (git_url, cls.tmp_dir))
 
     @classmethod
@@ -21,8 +21,8 @@ class TutorialNotebookTests(unittest.TestCase):
         shutil.rmtree(cls.tmp_dir)
 
     def test_iris(self):
-        notebook = os.path.join(self.tmp_dir, 'iris',
-                                'swift_tensorflow_tutorial.ipynb')
+        notebook = os.path.join(self.tmp_dir, 'docs', 'site', 'tutorials',
+                                'walkthrough.ipynb')
         runner = NotebookTestRunner(notebook, verbose=False)
         runner.run()
         self.assertEqual([], runner.unexpected_errors)
