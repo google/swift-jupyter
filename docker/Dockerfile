@@ -59,8 +59,13 @@ RUN python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --s
 RUN echo "/usr/local/cuda-10.0/targets/x86_64-linux/lib/stubs" > /etc/ld.so.conf.d/cuda-10.0-stubs.conf && \
     ldconfig
 
+# Dev-summit stuff
+RUN pip3 install jupyter_http_over_ws
+RUN jupyter serverextension enable --py jupyter_http_over_ws
+RUN pip3 install gym
+
 # Run jupyter on startup
 EXPOSE 8888
 RUN mkdir /notebooks
 WORKDIR /notebooks
-CMD ["/swift-jupyter/docker/run_jupyter.sh", "--allow-root", "--no-browser", "--ip=0.0.0.0", "--port=8888", "--NotebookApp.custom_display_url=http://127.0.0.1:8888"]
+CMD ["/swift-jupyter/docker/run_jupyter.sh", "--allow-root", "--no-browser", "--ip=0.0.0.0", "--port=8888", "--NotebookApp.custom_display_url=http://127.0.0.1:8888", "--NotebookApp.allow_origin='*'", "--NotebookApp.port_retries=0", "--NotebookApp.token=''"]
