@@ -37,3 +37,10 @@ class SimpleNotebookTests(unittest.TestCase):
         self.assertIsInstance(runner.unexpected_errors[0]['error'],
                               ExecuteError)
         self.assertEqual(1, runner.unexpected_errors[0]['error'].cell_index)
+
+    def test_install_package(self):
+        notebook = os.path.join(NOTEBOOK_DIR, 'install_package.ipynb')
+        runner = NotebookTestRunner(notebook, char_step=0, verbose=False)
+        runner.run()
+        self.assertIn('Installation complete', runner.stdout[0])
+        self.assertIn('42', runner.stdout[2])

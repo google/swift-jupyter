@@ -144,6 +144,32 @@ display.display(pd.DataFrame.from_records([["col 1": 3, "col 2": 5], ["col 1": 8
 
 [Swift's Python interop]: https://github.com/tensorflow/swift/blob/master/docs/PythonInteroperability.md
 
+## %install directives
+
+`%install` directives let you install SwiftPM packages so that your notebook
+can import them:
+
+```swift
+// Install the DeckOfPlayingCards package from GitHub.
+%install '.package(url: "https://github.com/NSHipster/DeckOfPlayingCards", from: "4.0.0")' DeckOfPlayingCards
+
+// Install the SimplePackage package that's in the kernel's working directory.
+%install '.package(path: "$cwd/SimplePackage")' SimplePackage
+```
+
+The first argument to `%install` is a [SwiftPM package dependency specifiction](https://github.com/apple/swift-package-manager/blob/master/Documentation/PackageDescriptionV4.md#dependencies).
+The next argument(s) to `%install` are the products that you want to install from the package.
+
+`%install` directives currently have some limitations:
+
+* You can only install packages once before you have to restart the kernel.
+  We recommend having one cell at the beginning of your notebook that installs
+  all the packages that the notebook needs.
+* Packages that (transitively) depend on C source code are not supported.
+* Downloads and build artifacts are not cached.
+* Some parts of packages get installed in a global directory, so two kernels
+  that are running at the same time can clobber each other's installations.
+
 ## %include directives
 
 `%include` directives let you include code from files. To use them, put a line
