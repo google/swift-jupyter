@@ -54,6 +54,8 @@ def make_kernel_env(args):
                 args.swift_toolchain, linux_lldb_python_lib_subdir())
             kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/linux' % args.swift_toolchain
             kernel_env['REPL_SWIFT_PATH'] = '%s/usr/bin/repl_swift' % args.swift_toolchain
+            kernel_env['SWIFT_BUILD_PATH'] = '%s/usr/bin/swift-build' % args.swift_toolchain
+            kernel_env['SWIFT_MODULE_PATH'] = '%s/usr/lib/swift/linux/x86_64' % args.swift_toolchain
         elif platform.system() == 'Darwin':
             kernel_env['PYTHONPATH'] = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/Python' % args.swift_toolchain
             kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/macosx' % args.swift_toolchain
@@ -109,6 +111,14 @@ def validate_kernel_env(kernel_env):
     if not os.path.isfile(kernel_env['REPL_SWIFT_PATH']):
         raise Exception('repl_swift binary not found at %s' %
                         kernel_env['REPL_SWIFT_PATH'])
+    if 'SWIFT_BUILD_PATH' in kernel_env and \
+            not os.path.isfile(kernel_env['SWIFT_BUILD_PATH']):
+        raise Exception('swift-build binary not found at %s' %
+                        kernel_env['SWIFT_BUILD_PATH'])
+    if 'SWIFT_MODULE_PATH' in kernel_env and \
+            not os.path.isdir(kernel_env['SWIFT_MODULE_PATH']):
+        raise Exception('swift modules not found at %s' %
+                        kernel_env['SWIFT_MODULE_PATH'])
 
 
 def main():

@@ -26,7 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpython-dev \
         libpython3-dev \
         libncurses5-dev \
-	libxml2
+        libxml2 \
+        libblocksruntime-dev
 
 # Upgrade pips
 RUN pip2 install --upgrade pip
