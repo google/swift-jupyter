@@ -404,11 +404,15 @@ class SwiftKernel(Kernel):
             raise PreprocessorException(
                     'Install Error: Cannot install packages because '
                     'SWIFT_BUILD_PATH is not specified.')
-        swift_module_path = os.environ.get('SWIFT_MODULE_PATH')
-        if swift_module_path is None:
+        swift_import_search_path = os.environ.get('SWIFT_IMPORT_SEARCH_PATH')
+        if swift_import_search_path is None:
             raise PreprocessorException(
                     'Install Error: Cannot install packages because '
-                    'SWIFT_MODULE_PATH is not specified.')
+                    'SWIFT_IMPORT_SEARCH_PATH is not specified.')
+
+        scratchwork_base_path = os.path.dirname(swift_import_search_path)
+        package_base_path = os.path.join(scratchwork_base_path, 'package')
+        os.makedirs(package_base_path, exist_ok=True)
 
         # Summary of how this works:
         # - create a SwiftPM package that depends on all the packages that
@@ -453,18 +457,23 @@ class SwiftKernel(Kernel):
             'name': 'stdout',
             'text': 'Installing packages:\n%s' % packages_human_description
         })
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Working in: %s\n' % scratchwork_base_path
+        })
 
         package_swift = package_swift_template % (packages_specs,
                                                   packages_products)
 
-        tmp_dir = tempfile.mkdtemp()
-        with open('%s/Package.swift' % tmp_dir, 'w') as f:
+        with open('%s/Package.swift' % scratchwork_base_path, 'w') as f:
             f.write(package_swift)
-        with open('%s/jupyterInstalledPackages.swift' % tmp_dir, 'w') as f:
+        with open('%s/jupyterInstalledPackages.swift' % scratchwork_base_path,
+                  'w') as f:
             f.write("// intentionally blank\n")
 
         build_p = subprocess.Popen([swift_build_path], stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT, cwd=tmp_dir)
+                                   stderr=subprocess.STDOUT,
+                                   cwd=scratchwork_base_path)
         for build_output_line in iter(build_p.stdout.readline, b''):
             self.send_response(self.iopub_socket, 'stream', {
                 'name': 'stdout',
@@ -478,14 +487,14 @@ class SwiftKernel(Kernel):
 
         show_bin_path_result = subprocess.run(
                 [swift_build_path, '--show-bin-path'], stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, cwd=tmp_dir)
+                stderr=subprocess.PIPE, cwd=scratchwork_base_path)
         bin_dir = show_bin_path_result.stdout.decode('utf8').strip()
         lib_filename = os.path.join(bin_dir, 'libjupyterInstalledPackages.so')
 
         # TODO: Put these files in a kernel-instance-specific directory so
         # that different kernels' installs do not clobber each other.
         for filename in glob.glob(os.path.join(bin_dir, '*.swiftmodule')):
-            shutil.copy(filename, swift_module_path)
+            shutil.copy(filename, swift_import_search_path)
 
         for filename in glob.glob(os.path.join(bin_dir, '**/module.modulemap')):
             # LLDB doesn't seem to pick up modulemap files that get added to
@@ -506,7 +515,7 @@ class SwiftKernel(Kernel):
             # in separate directories. Let's use the name of the directory
             # containing the modulemap file, e.g. "BaseMath.build".
             modulemap_dir_name = os.path.basename(os.path.dirname(filename))
-            modulemap_dir = os.path.join(swift_module_path, 'modulemaps',
+            modulemap_dir = os.path.join(swift_import_search_path, 'modulemaps',
                                          modulemap_dir_name)
             os.makedirs(modulemap_dir, exist_ok=True)
             shutil.copy(filename, modulemap_dir)

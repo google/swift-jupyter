@@ -146,6 +146,8 @@ display.display(pd.DataFrame.from_records([["col 1": 3, "col 2": 5], ["col 1": 8
 
 ## %install directives
 
+**Note: Requires a Swift for TensorFlow toolchain built on or after March 20, 2019.**
+
 `%install` directives let you install SwiftPM packages so that your notebook
 can import them:
 
@@ -167,8 +169,6 @@ The next argument(s) to `%install` are the products that you want to install fro
   all the packages that the notebook needs.
 * Packages that (transitively) depend on C source code are not supported.
 * Downloads and build artifacts are not cached.
-* Some parts of packages get installed in a global directory, so two kernels
-  that are running at the same time can clobber each other's installations.
 
 ## %include directives
 
