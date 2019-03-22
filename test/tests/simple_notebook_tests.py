@@ -44,3 +44,11 @@ class SimpleNotebookTests(unittest.TestCase):
         runner.run()
         self.assertIn('Installation complete', runner.stdout[0])
         self.assertIn('42', runner.stdout[2])
+
+    def test_install_package_with_c(self):
+        notebook = os.path.join(NOTEBOOK_DIR, 'install_package_with_c.ipynb')
+        runner = NotebookTestRunner(notebook, char_step=0, verbose=False)
+        runner.run()
+        self.assertIn('Installation complete', runner.stdout[0])
+        self.assertIn('42', runner.stdout[2])
+        self.assertIn('1337', runner.stdout[3])

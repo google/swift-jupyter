@@ -71,7 +71,7 @@ class CompleteCrash(CompleteException):
 
 class NotebookTestRunner:
     def __init__(self, notebook, char_step=1, repeat_times=1,
-                 execute_timeout=15, complete_timeout=5, verbose=True):
+                 execute_timeout=30, complete_timeout=5, verbose=True):
         """
         noteboook - path to a notebook to run the test on
         char_step - number of chars to step per completion request. 0 disables

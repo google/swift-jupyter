@@ -198,10 +198,7 @@ The next argument(s) to `%install` are the products that you want to install fro
 
 `%install` directives currently have some limitations:
 
-* You can only install packages once before you have to restart the kernel.
-  We recommend having one cell at the beginning of your notebook that installs
-  all the packages that the notebook needs.
-* Packages that (transitively) depend on C source code are not supported.
+* You must install all your packages in the first cell that you execute.
 * Downloads and build artifacts are not cached.
 
 ## %include directives

@@ -135,6 +135,10 @@ class SwiftKernelTestsBase:
         self.assertIn('main at <Cell %d>:2:13' % call_cell, traceback[3])
 
     def test_interrupt_execution(self):
+        # Execute something to trigger debugger initialization, so that the
+        # next cell executes quickly.
+        self.execute_helper(code='')
+
         msg_id = self.kc.execute(code="""while true {}""")
 
         # Give the kernel some time to actually start execution, because it
@@ -166,6 +170,10 @@ class SwiftKernelTestsBase:
                 break
 
     def test_async_stdout(self):
+        # Execute something to trigger debugger initialization, so that the
+        # next cell executes quickly.
+        self.execute_helper(code='')
+
         # Test that we receive stdout while execution is happening by printing
         # something and then entering an infinite loop.
         msg_id = self.kc.execute(code="""
@@ -251,7 +259,7 @@ class ProcessKilledTest(unittest.TestCase):
 
         had_error = False
         while True:
-            reply = kc.get_iopub_msg(timeout=10)
+            reply = kc.get_iopub_msg(timeout=30)
             if reply['header']['msg_type'] == 'error':
                 had_error = True
                 self.assertEqual(['Process killed'],

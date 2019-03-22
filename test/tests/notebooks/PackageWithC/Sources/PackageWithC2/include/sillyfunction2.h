@@ -1,0 +1,1 @@
+int sillyfunction2();
