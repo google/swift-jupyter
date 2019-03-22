@@ -18,6 +18,7 @@
 # then launches "swift_kernel.py" as a subprocess.
 
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -40,6 +41,14 @@ swift_import_search_path = os.path.join(package_install_scratchwork_base,
 os.makedirs(swift_import_search_path, exist_ok=True)
 
 # Launch "swift_kernel.py".
-subprocess.run(args,
-               env=dict(os.environ,
-                        SWIFT_IMPORT_SEARCH_PATH=swift_import_search_path))
+process = subprocess.Popen(
+        args, env=dict(os.environ,
+                       SWIFT_IMPORT_SEARCH_PATH=swift_import_search_path))
+
+# Forward SIGINT to the subprocess so that it can handle interrupt requests
+# from Jupyter. 
+def handle_sigint(sig, frame):
+    process.send_signal(signal.SIGINT)
+signal.signal(signal.SIGINT, handle_sigint)
+
+process.wait()
