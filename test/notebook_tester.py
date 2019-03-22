@@ -93,7 +93,8 @@ class NotebookTestRunner:
         nb = nbformat.read(notebook, as_version=4)
 
         self.code_cells = [cell for cell in nb.cells
-                           if cell.cell_type == 'code']
+                           if cell.cell_type == 'code' \
+                           and not cell.source.startswith('#@title')]
 
         self.stdout = []
         self.unexpected_errors = []
