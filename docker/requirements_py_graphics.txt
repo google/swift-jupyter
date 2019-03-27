@@ -1,0 +1,5 @@
+# Not required to run the kernel, but required for inline graphics.
+ipykernel
+matplotlib
+numpy
+pandas

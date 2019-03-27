@@ -1,6 +1,0 @@
-# Not required to run the kernel, but useful to install in your system python
-# so that you can use these python libraries to display inline graphics.
-matplotlib
-numpy
-pandas
-ipykernel

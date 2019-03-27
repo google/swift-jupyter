@@ -35,7 +35,7 @@ RUN pip3 install --upgrade pip
 
 # Install swift-jupyter's dependencies in python3 because we run the kernel in python3.
 WORKDIR /swift-jupyter
-COPY requirements*.txt ./
+COPY docker/requirements*.txt ./
 RUN pip3 install -r requirements.txt
 
 # Install some python libraries that are useful to call from swift. Since
