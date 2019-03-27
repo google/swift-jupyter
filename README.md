@@ -5,7 +5,7 @@ with the [Swift for TensorFlow](https://github.com/tensorflow/swift) project.
 
 # Installation Instructions
 
-## With TensorFlow toolchain
+## Option 1: Using a Swift for TensorFlow toolchain and Virtualenv
 
 ### Requirements
 
@@ -22,7 +22,7 @@ Dependencies:
 
 ### Installation
 
-swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/master/Installation.md#pre-built-packages). Alternatively, you can build a toolchain from sources (see the next section for instructions).
+swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/master/Installation.md#pre-built-packages). Alternatively, you can build a toolchain from sources (see the section below for instructions).
 
 Extract the Swift toolchain somewhere.
 
@@ -33,7 +33,6 @@ it:
 python3 -m venv venv
 . venv/bin/activate
 pip install -r requirements.txt
-pip install -r requirements_py_graphics.txt
 python register.py --sys-prefix --swift-toolchain <path to extracted swift toolchain directory>
 ```
 
@@ -46,24 +45,42 @@ jupyter notebook
 
 You should be able to create Swift notebooks. Installation is done!
 
-### (optional) Building toolchain with LLDB Python3 support
+## Option 2: Using a Swift for TensorFlow toolchain and Conda
 
-Follow the
-[Building Swift for TensorFlow](https://github.com/apple/swift/tree/tensorflow#building-swift-for-tensorflow)
-instructions, with some modifications:
+### Requirements
 
-* Also install the Python 3 development headers. (For Ubuntu 18.04,
-  `sudo apt-get install libpython3-dev`). The LLDB build will automatically
-  find these and build with Python 3 support.
-* Instead of running `utils/build-script`, run
-  `SWIFT_PACKAGE=tensorflow_linux,no_test ./swift/utils/build-toolchain local.swift`
-  or `SWIFT_PACKAGE=tensorflow_linux ./swift/utils/build-toolchain local.swift,gpu,no_test`
-  (depending on whether you want to build tensorflow with GPU support).
+Operating system:
 
-This will create a tar file containing the full toolchain. You can now proceed
-with the installation instructions from the previous section.
+* Ubuntu 18.04 (64-bit); OR
+* other operating systems may work, but you will have to build Swift from
+  sources.
 
-## Using the Docker Container
+### Installation
+
+swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/master/Installation.md#pre-built-packages). Alternatively, you can build a toolchain from sources (see the section below for instructions).
+
+Extract the Swift toolchain somewhere.
+
+Create a conda environment, install the following requirements in it, and
+register the kernel in it:
+
+```
+conda create -n swift-tensorflow python==3.6
+conda activate swift-tensorflow
+conda install jupyter numpy matplotlib
+conda info # returns "active env location", important for the next command
+python register.py --sys-prefix --swift-toolchain <path to extracted swift toolchain directory> --swift-python-library <active env location>/lib/libpython3.6m.so
+```
+
+Finally, run Jupyter:
+
+```
+jupyter notebook
+```
+
+You should be able to create Swift notebooks. Installation is done!
+
+## Option 3: Using the Docker Container
 
 This repository also includes a dockerfile which can be used to run a Jupyter Notebook instance which includes this Swift kernel. To build the container, the following command may be used:
 
@@ -87,6 +104,23 @@ The functions of these parameters are:
 - `--cap-add SYS_PTRACE` adjusts the privileges with which this container is run, which is required for the Swift REPL.
 
 - `-v <host path>:/notebooks` bind mounts a host directory as a volume where notebooks created in the container will be stored.  If this command is omitted, any notebooks created using the container will not be persisted when the container is stopped.
+
+## (optional) Building toolchain with LLDB Python3 support
+
+Follow the
+[Building Swift for TensorFlow](https://github.com/apple/swift/tree/tensorflow#building-swift-for-tensorflow)
+instructions, with some modifications:
+
+* Also install the Python 3 development headers. (For Ubuntu 18.04,
+  `sudo apt-get install libpython3-dev`). The LLDB build will automatically
+  find these and build with Python 3 support.
+* Instead of running `utils/build-script`, run
+  `SWIFT_PACKAGE=tensorflow_linux,no_test ./swift/utils/build-toolchain local.swift`
+  or `SWIFT_PACKAGE=tensorflow_linux ./swift/utils/build-toolchain local.swift,gpu,no_test`
+  (depending on whether you want to build tensorflow with GPU support).
+
+This will create a tar file containing the full toolchain. You can now proceed
+with the installation instructions from the previous section.
 
 # Usage Instructions
 

@@ -1,0 +1,4 @@
+# Not required to run the kernel, but required for inline graphics.
+matplotlib
+numpy
+pandas
