@@ -83,6 +83,10 @@ class PreprocessorException(Exception):
     pass
 
 
+class PackageInstallException(Exception):
+    pass
+
+
 class SwiftError(ExecutionResultError):
     """There was a compile or runtime error."""
     def __init__(self, result):
@@ -169,21 +173,30 @@ class SwiftKernel(Kernel):
     def __init__(self, **kwargs):
         super(SwiftKernel, self).__init__(**kwargs)
 
+        # We don't initialize Swift yet, so that the user has a chance to
+        # "%install" packages before Swift starts. (See doc comment in
+        # `_init_swift`).
+
+        # Whether to do code completion. Since the debugger is not yet
+        # initialized, we can't do code completion yet.
+        self.completion_enabled = False
+
+    def _init_swift(self):
+        """Initializes Swift so that it's ready to start executing user code.
+
+        This must happen after package installation, because the ClangImporter
+        does not see modulemap files that appear after it has started."""
+
         self._init_repl_process()
         self._init_kernel_communicator()
         self._init_int_bitwidth()
         self._init_sigint_handler()
 
-        # Whether to do code completion.
         # We do completion by default when the toolchain has the
         # SBTarget.CompleteCode API.
         # The user can disable/enable using "%disableCompletion" and
         # "%enableCompletion".
         self.completion_enabled = hasattr(self.target, 'CompleteCode')
-
-        # Whether the user has installed any packages using the "%install"
-        # directive.
-        self.already_installed_packages = False
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
@@ -282,13 +295,8 @@ class SwiftKernel(Kernel):
 
     def _preprocess(self, code):
         lines = code.split('\n')
-        preprocessed_lines = []
-        all_packages = []
-        for i, line in enumerate(lines):
-            preprocessed_line, packages = self._preprocess_line(i, line)
-            preprocessed_lines.append(preprocessed_line)
-            all_packages += packages
-        self._install_packages(all_packages)
+        preprocessed_lines = [
+                self._preprocess_line(i, line) for i, line in enumerate(lines)]
         return '\n'.join(preprocessed_lines)
 
     def _handle_disable_completion(self):
@@ -314,27 +322,26 @@ class SwiftKernel(Kernel):
         })
 
     def _preprocess_line(self, line_index, line):
-        """Returns a tuple of (preprocessed_line, packages)."""
+        """Returns the preprocessed line.
+
+        Does not process "%install" directives, because those need to be
+        handled before everything else."""
 
         include_match = re.match(r'^\s*%include (.*)$', line)
         if include_match is not None:
-            return self._read_include(line_index, include_match.group(1)), []
-
-        install_match = re.match(r'^\s*%install (.*)$', line)
-        if install_match is not None:
-            return self._process_install(line_index, install_match.group(1))
+            return self._read_include(line_index, include_match.group(1))
 
         disable_completion_match = re.match(r'^\s*%disableCompletion\s*$', line)
         if disable_completion_match is not None:
             self._handle_disable_completion()
-            return '', []
+            return ''
 
         enable_completion_match = re.match(r'^\s*%enableCompletion\s*$', line)
         if enable_completion_match is not None:
             self._handle_enable_completion()
-            return '', []
+            return ''
 
-        return line, []
+        return line
 
     def _read_include(self, line_index, rest_of_line):
         name_match = re.match(r'^\s*"([^"]+)"\s*$', rest_of_line)
@@ -370,21 +377,38 @@ class SwiftKernel(Kernel):
             ''
         ])
 
-    def _process_install(self, line_index, rest_of_line):
-        parsed = shlex.split(rest_of_line)
+    def _process_installs(self, code):
+        """Handles all "%install" directives, and returns `code` with all
+        "%install" directives removed."""
+        processed_lines = []
+        all_packages = []
+        for index, line in enumerate(code.split('\n')):
+            line, packages = self._process_install_line(index, line)
+            processed_lines.append(line)
+            all_packages += packages
+        self._install_packages(all_packages)
+        return '\n'.join(processed_lines)
+
+    def _process_install_line(self, line_index, line):
+        install_match = re.match(r'^\s*%install (.*)$', line)
+        if install_match is None:
+            return line, []
+
+        parsed = shlex.split(install_match.group(1))
         if len(parsed) < 2:
-            raise PreprocessorException(
+            raise PackageInstallException(
                     'Line %d: %%install usage: SPEC PRODUCT [PRODUCT ...]' % (
                             line_index + 1))
         try:
             spec = string.Template(parsed[0]).substitute({"cwd": os.getcwd()})
         except KeyError as e:
-            raise PreprocessorException(
+            raise PackageInstallException(
                     'Line %d: Invalid template argument %s' % (line_index + 1,
                                                                str(e)))
         except ValueError as e:
-            raise PreprocessorException(
+            raise PackageInstallException(
                     'Line %d: %s' % (line_index + 1, str(e)))
+
         return '', [{
             'spec': spec,
             'products': parsed[1:],
@@ -394,19 +418,21 @@ class SwiftKernel(Kernel):
         if len(packages) == 0:
             return
 
-        if self.already_installed_packages:
-            raise PreprocessorException(
-                    'Install Error: Packages can only be installed once. '
-                    'Restart the kernel to install different packages.')
+        if hasattr(self, 'debugger'):
+            raise PackageInstallException(
+                    'Install Error: Packages can only be installed during the '
+                    'first cell execution. Restart the kernel to install '
+                    'packages.')
 
         swift_build_path = os.environ.get('SWIFT_BUILD_PATH')
         if swift_build_path is None:
-            raise PreprocessorException(
+            raise PackageInstallException(
                     'Install Error: Cannot install packages because '
                     'SWIFT_BUILD_PATH is not specified.')
+
         swift_import_search_path = os.environ.get('SWIFT_IMPORT_SEARCH_PATH')
         if swift_import_search_path is None:
-            raise PreprocessorException(
+            raise PackageInstallException(
                     'Install Error: Cannot install packages because '
                     'SWIFT_IMPORT_SEARCH_PATH is not specified.')
 
@@ -418,9 +444,11 @@ class SwiftKernel(Kernel):
         # - create a SwiftPM package that depends on all the packages that
         #   the user requested
         # - ask SwiftPM to build that package
-        # - copy all the .swiftmodule files that SwiftPM created to a location
-        #   where swift sees them
+        # - copy all the .swiftmodule and module.modulemap files that SwiftPM
+        #   created to SWIFT_IMPORT_SEARCH_PATH
         # - dlopen the .so file that SwiftPM created
+
+        # == Create the SwiftPM package ==
 
         package_swift_template = textwrap.dedent("""\
             // swift-tools-version:4.2
@@ -465,15 +493,16 @@ class SwiftKernel(Kernel):
         package_swift = package_swift_template % (packages_specs,
                                                   packages_products)
 
-        with open('%s/Package.swift' % scratchwork_base_path, 'w') as f:
+        with open('%s/Package.swift' % package_base_path, 'w') as f:
             f.write(package_swift)
-        with open('%s/jupyterInstalledPackages.swift' % scratchwork_base_path,
-                  'w') as f:
+        with open('%s/jupyterInstalledPackages.swift' % package_base_path, 'w') as f:
             f.write("// intentionally blank\n")
+
+        # == Ask SwiftPM to build the package ==
 
         build_p = subprocess.Popen([swift_build_path], stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT,
-                                   cwd=scratchwork_base_path)
+                                   cwd=package_base_path)
         for build_output_line in iter(build_p.stdout.readline, b''):
             self.send_response(self.iopub_socket, 'stream', {
                 'name': 'stdout',
@@ -481,62 +510,69 @@ class SwiftKernel(Kernel):
             })
         build_returncode = build_p.wait()
         if build_returncode != 0:
-            raise PreprocessorException(
+            raise PackageInstallException(
                     'Install Error: swift-build returned nonzero exit code '
                     '%d.' % build_returncode)
 
         show_bin_path_result = subprocess.run(
                 [swift_build_path, '--show-bin-path'], stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, cwd=scratchwork_base_path)
+                stderr=subprocess.PIPE, cwd=package_base_path)
         bin_dir = show_bin_path_result.stdout.decode('utf8').strip()
         lib_filename = os.path.join(bin_dir, 'libjupyterInstalledPackages.so')
 
-        # TODO: Put these files in a kernel-instance-specific directory so
-        # that different kernels' installs do not clobber each other.
+        # == Copy .swiftmodule and modulemap files to SWIFT_IMPORT_SEARCH_PATH ==
+
         for filename in glob.glob(os.path.join(bin_dir, '*.swiftmodule')):
             shutil.copy(filename, swift_import_search_path)
 
-        for filename in glob.glob(os.path.join(bin_dir, '**/module.modulemap')):
-            # LLDB doesn't seem to pick up modulemap files that get added to
-            # the modulemap search path after it starts. Also, packages with
-            # modulemap files seem to make things generally unstable. So let's
-            # just forbid packages with modulemap files until we figure all
-            # this out.
-            raise PreprocessorException(
-                    'Install Error: Packages with modulemap files not '
-                    'supported.')
+        # The modulemap files appear in a few different places. Add all of
+        # them.
+        # TODO: Figure out if there is a principled way to figure out where
+        # all the modulemap files are.
+        modulemap_files = glob.glob(
+                os.path.join(bin_dir, '**/module.modulemap'), recursive=True)
+        modulemap_files += glob.glob(
+                os.path.join(package_base_path,
+                             '.build/checkouts/**/module.modulemap'),
+                recursive=True)
+        for index, filename in enumerate(modulemap_files):
+            # Create a separate directory for each modulemap file because the
+            # ClangImporter requires that they are all named
+            # "module.modulemap".
+            modulemap_dest = os.path.join(swift_import_search_path,
+                                          'modulemap-%d' % index)
+            os.makedirs(modulemap_dest, exist_ok=True)
+            shutil.copy(filename, modulemap_dest)
 
-            # The following code attempts to make modulemap files work, but
-            # suffers from the problems described above.
-            # Intentionally left here even though it doesn't execute, so that
-            # curious people can experiment with it.
+        # == dlopen the shared lib ==
 
-            # Since all modulemap files have the same name, we need to put them
-            # in separate directories. Let's use the name of the directory
-            # containing the modulemap file, e.g. "BaseMath.build".
-            modulemap_dir_name = os.path.basename(os.path.dirname(filename))
-            modulemap_dir = os.path.join(swift_import_search_path, 'modulemaps',
-                                         modulemap_dir_name)
-            os.makedirs(modulemap_dir, exist_ok=True)
-            shutil.copy(filename, modulemap_dir)
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Initializing Swift...\n'
+        })
+        self._init_swift()
 
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Loading library...\n'
+        })
         dynamic_load_code = textwrap.dedent("""\
             import func Glibc.dlopen
             dlopen(%s, RTLD_NOW)
         """ % json.dumps(lib_filename))
         dynamic_load_result = self._execute(dynamic_load_code)
         if not isinstance(dynamic_load_result, SuccessWithValue):
-            raise PreprocessorException(
+            raise PackageInstallException(
                     'Install Error: dlopen error: %s' % \
                             str(dynamic_load_result))
         if dynamic_load_result.result.description.strip() == 'nil':
-            raise PreprocessorException('Install Error: dlopen error. Run '
+            raise PackageInstallException('Install Error: dlopen error. Run '
                                         '`String(cString: dlerror())` to see '
                                         'the error message.')
 
         self.send_response(self.iopub_socket, 'stream', {
             'name': 'stdout',
-            'text': 'Installation complete!'
+            'text': 'Installation complete!\n'
         })
         self.already_installed_packages = True
 
@@ -668,6 +704,21 @@ class SwiftKernel(Kernel):
 
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
+        # Package installs must be done before initializing Swift (see doc
+        # comment in `_init_swift`).
+        try:
+            code = self._process_installs(code)
+        except PackageInstallException as e:
+            error_message = self._make_error_message([str(e)])
+            self.send_response(self.iopub_socket, 'error', error_message)
+            return error_message
+        except Exception as e:
+            self._send_exception_report('_process_installs', e)
+            raise e
+
+        if not hasattr(self, 'debugger'):
+            self._init_swift()
+
         # Start up a new thread to collect stdout.
         stdout_handler = StdoutHandler(self)
         stdout_handler.start()
