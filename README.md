@@ -198,7 +198,9 @@ The next argument(s) to `%install` are the products that you want to install fro
 
 `%install` directives currently have some limitations:
 
-* You must install all your packages in the first cell that you execute.
+* You must install all your packages in the first cell that you execute. (It
+  will refuse to install packages, and print out an error message explaining
+  why, if you try to install packages in later cells.)
 * Downloads and build artifacts are not cached.
 
 ## %include directives
