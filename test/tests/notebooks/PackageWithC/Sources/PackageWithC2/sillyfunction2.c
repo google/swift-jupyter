@@ -1,3 +1,3 @@
 int sillyfunction2() {
-  return 1337;
+  return MACRO_DEFINED_IN_COMPILER_FLAG;
 }

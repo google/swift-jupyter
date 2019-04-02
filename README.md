@@ -186,6 +186,9 @@ display.display(pd.DataFrame.from_records([["col 1": 3, "col 2": 5], ["col 1": 8
 can import them:
 
 ```swift
+// Specify SwiftPM flags to use during package installation.
+%install-swiftpm-flags -c release
+
 // Install the DeckOfPlayingCards package from GitHub.
 %install '.package(url: "https://github.com/NSHipster/DeckOfPlayingCards", from: "4.0.0")' DeckOfPlayingCards
 
@@ -202,6 +205,8 @@ The next argument(s) to `%install` are the products that you want to install fro
   will refuse to install packages, and print out an error message explaining
   why, if you try to install packages in later cells.)
 * Downloads and build artifacts are not cached.
+* `%install-swiftpm-flags` apply to all packages that you are installing; there
+  is no way to specify different flags for different packages.
 
 ## %include directives
 
