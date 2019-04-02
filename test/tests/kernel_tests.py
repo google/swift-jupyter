@@ -137,7 +137,7 @@ class SwiftKernelTestsBase:
     def test_interrupt_execution(self):
         # Execute something to trigger debugger initialization, so that the
         # next cell executes quickly.
-        self.execute_helper(code='')
+        self.execute_helper(code='1 + 1')
 
         msg_id = self.kc.execute(code="""while true {}""")
 
@@ -172,7 +172,7 @@ class SwiftKernelTestsBase:
     def test_async_stdout(self):
         # Execute something to trigger debugger initialization, so that the
         # next cell executes quickly.
-        self.execute_helper(code='')
+        self.execute_helper(code='1 + 1')
 
         # Test that we receive stdout while execution is happening by printing
         # something and then entering an infinite loop.
@@ -246,25 +246,75 @@ class SwiftKernelTests(SwiftKernelTestsBase,
     kernel_name = 'swift'
 
 
-# Tests that a killed `repl_swift` process is handled correctly. We put this
-# in a separate class that instantiates a separate kernel from all the other
-# tests so that killing `repl_swift` does not interfere with other tests.
-class ProcessKilledTest(unittest.TestCase):
+# Class for tests that need their own kernel. (`SwiftKernelTestsBase` uses one
+# kernel for all the tests.)
+class OwnKernelTests(unittest.TestCase):
     def test_process_killed(self):
         km, kc = start_new_kernel(kernel_name='swift')
         kc.execute("""
             import Glibc
             exit(0)
         """)
+        messages = self.wait_for_idle(kc)
 
         had_error = False
-        while True:
-            reply = kc.get_iopub_msg(timeout=30)
-            if reply['header']['msg_type'] == 'error':
+        for message in messages:
+            if message['header']['msg_type'] == 'error':
                 had_error = True
                 self.assertEqual(['Process killed'],
-                                 reply['content']['traceback'])
-            if reply['header']['msg_type'] == 'status' and \
-                    reply['content']['execution_state'] == 'idle':
-                break
+                                 message['content']['traceback'])
         self.assertTrue(had_error)
+
+    def test_install_after_execute(self):
+        # The kernel is supposed to refuse to install package after executing
+        # code.
+
+        km, kc = start_new_kernel(kernel_name='swift')
+        kc.execute('1 + 1')
+        self.wait_for_idle(kc)
+        kc.execute("""
+            %install DummyPackage DummyPackage
+        """)
+        messages = self.wait_for_idle(kc)
+
+        had_error = False
+        for message in messages:
+            if message['header']['msg_type'] == 'error':
+                had_error = True
+                self.assertIn('Install Error: Packages can only be installed '
+                              'during the first cell execution.',
+                              message['content']['traceback'][0])
+        self.assertTrue(had_error)
+
+    def test_install_after_execute_blank(self):
+        # If the user executes blank code, the kernel is supposed to try
+        # to install packages. In particular, Colab sends a blank execution
+        # request to the kernel when it starts up, and it's important that this
+        # doesn't block package installation.
+
+        km, kc = start_new_kernel(kernel_name='swift')
+        kc.execute('\n\n\n')
+        self.wait_for_idle(kc)
+        kc.execute("""
+            %install DummyPackage DummyPackage
+        """)
+        messages = self.wait_for_idle(kc)
+
+        # DummyPackage doesn't exist, so package installation won't actually
+        # succeed. So we just assert that the kernel tries to install it.
+        stdout = ''
+        for message in messages:
+            if message['header']['msg_type'] == 'stream' and \
+                    message['content']['name'] == 'stdout':
+                stdout += message['content']['text']
+        self.assertIn('Installing packages:', stdout)
+
+    def wait_for_idle(self, kc):
+        messages = []
+        while True:
+            message = kc.get_iopub_msg(timeout=30)
+            messages.append(message)
+            if message['header']['msg_type'] == 'status' and \
+                    message['content']['execution_state'] == 'idle':
+                break
+        return messages
