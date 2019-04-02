@@ -382,12 +382,24 @@ class SwiftKernel(Kernel):
         "%install" directives removed."""
         processed_lines = []
         all_packages = []
+        all_swiftpm_flags = []
         for index, line in enumerate(code.split('\n')):
+            line, swiftpm_flags = self._process_install_swiftpm_flags_line(
+                    line)
+            all_swiftpm_flags += swiftpm_flags
             line, packages = self._process_install_line(index, line)
             processed_lines.append(line)
             all_packages += packages
-        self._install_packages(all_packages)
+        self._install_packages(all_packages, all_swiftpm_flags)
         return '\n'.join(processed_lines)
+
+    def _process_install_swiftpm_flags_line(self, line):
+        install_swiftpm_flags_match = re.match(
+                r'^\s*%install-swiftpm-flags (.*)$', line)
+        if install_swiftpm_flags_match is None:
+            return line, []
+        flags = shlex.split(install_swiftpm_flags_match.group(1))
+        return '', flags
 
     def _process_install_line(self, line_index, line):
         install_match = re.match(r'^\s*%install (.*)$', line)
@@ -414,8 +426,8 @@ class SwiftKernel(Kernel):
             'products': parsed[1:],
         }]
 
-    def _install_packages(self, packages):
-        if len(packages) == 0:
+    def _install_packages(self, packages, swiftpm_flags):
+        if len(packages) == 0 and len(swiftpm_flags) == 0:
             return
 
         # Appears to trigger even in the first cell execution.
@@ -489,6 +501,10 @@ class SwiftKernel(Kernel):
         })
         self.send_response(self.iopub_socket, 'stream', {
             'name': 'stdout',
+            'text': 'With SwiftPM flags: %s\n' % str(swiftpm_flags)
+        })
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
             'text': 'Working in: %s\n' % scratchwork_base_path
         })
 
@@ -502,7 +518,8 @@ class SwiftKernel(Kernel):
 
         # == Ask SwiftPM to build the package ==
 
-        build_p = subprocess.Popen([swift_build_path], stdout=subprocess.PIPE,
+        build_p = subprocess.Popen([swift_build_path] + swiftpm_flags,
+                                   stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT,
                                    cwd=package_base_path)
         for build_output_line in iter(build_p.stdout.readline, b''):
@@ -517,8 +534,9 @@ class SwiftKernel(Kernel):
                     '%d.' % build_returncode)
 
         show_bin_path_result = subprocess.run(
-                [swift_build_path, '--show-bin-path'], stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, cwd=package_base_path)
+                [swift_build_path, '--show-bin-path'] + swiftpm_flags,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                cwd=package_base_path)
         bin_dir = show_bin_path_result.stdout.decode('utf8').strip()
         lib_filename = os.path.join(bin_dir, 'libjupyterInstalledPackages.so')
 
