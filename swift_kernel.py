@@ -430,13 +430,11 @@ class SwiftKernel(Kernel):
         if len(packages) == 0 and len(swiftpm_flags) == 0:
             return
 
-        # Appears to trigger even in the first cell execution.
-        # Commenting out to work around for now.
-        # if hasattr(self, 'debugger'):
-        #     raise PackageInstallException(
-        #             'Install Error: Packages can only be installed during the '
-        #             'first cell execution. Restart the kernel to install '
-        #             'packages.')
+        if hasattr(self, 'debugger'):
+            raise PackageInstallException(
+                    'Install Error: Packages can only be installed during the '
+                    'first cell execution. Restart the kernel to install '
+                    'packages.')
 
         swift_build_path = os.environ.get('SWIFT_BUILD_PATH')
         if swift_build_path is None:
@@ -735,6 +733,16 @@ class SwiftKernel(Kernel):
         except Exception as e:
             self._send_exception_report('_process_installs', e)
             raise e
+
+        # Return early if the code is empty or whitespace, to avoid
+        # initializing Swift and preventing package installs.
+        if len(code) == 0 or code.isspace():
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
 
         if not hasattr(self, 'debugger'):
             self._init_swift()

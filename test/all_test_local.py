@@ -6,7 +6,7 @@ special kernel named 'swift-with-python-2.7'.
 
 import unittest
 
-from tests.kernel_tests import SwiftKernelTests, ProcessKilledTest
+from tests.kernel_tests import SwiftKernelTests, OwnKernelTests
 from tests.simple_notebook_tests import *
 from tests.tutorial_notebook_tests import *
 
