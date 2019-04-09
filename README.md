@@ -57,9 +57,13 @@ Operating system:
 
 ### Installation
 
+#### 1. Get toolchain
+
 swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/master/Installation.md#pre-built-packages). Alternatively, you can build a toolchain from sources (see the section below for instructions).
 
 Extract the Swift toolchain somewhere.
+
+#### 2. Initialize environment
 
 Create a Conda environment and install some packages in it:
 
@@ -68,6 +72,8 @@ conda create -n swift-tensorflow python==3.6
 conda activate swift-tensorflow
 conda install jupyter numpy matplotlib
 ```
+
+#### (Optional) 3. Install CUDA
 
 (Optional) If you want to use a Swift toolchain with CUDA, and if you have not installed CUDA on your system using other means, then install CUDA in your Conda environment:
 
@@ -79,14 +85,14 @@ Important notes about CUDA:
 * Conda does not install NVidia drivers, so you will have to do that yourself through other means.
 * The first time you run a TensorFlow operation from Swift, TensorFlow may spend up to 10 minutes compiling CUDA kernels.
 
+#### 4. Register kernel
+
 Register the Swift kernel with Jupyter:
 
 ```bash
-conda info # returns "active env location", important for the next command
 python register.py --sys-prefix --swift-python-use-conda --use-conda-shared-libs \
   --swift-toolchain <path to extracted swift toolchain directory>
 ```
-
 
 Finally, run Jupyter:
 
