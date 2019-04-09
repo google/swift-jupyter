@@ -75,7 +75,7 @@ conda install jupyter numpy matplotlib
 
 #### (Optional) 3. Install CUDA
 
-(Optional) If you want to use a Swift toolchain with CUDA, and if you have not installed CUDA on your system using other means, then install CUDA in your Conda environment:
+If you want to use a Swift toolchain with CUDA, and if you have not installed CUDA on your system using other means, then install CUDA in your Conda environment:
 
 ```bash
 conda install cudatoolkit cudnn
