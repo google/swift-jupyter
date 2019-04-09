@@ -94,6 +94,11 @@ def make_kernel_env(args):
         kernel_env['PYTHON_VERSION'] = args.swift_python_version
     if args.swift_python_library is not None:
         kernel_env['PYTHON_LIBRARY'] = args.swift_python_library
+    if args.swift_python_use_conda:
+        kernel_env['PYTHON_LIBRARY'] = sys.prefix + '/lib/libpython3.6m.so'
+
+    if args.use_conda_shared_libs:
+        kernel_env['LD_LIBRARY_PATH'] += ':' + sys.prefix + '/lib'
 
     return kernel_env
 
@@ -104,9 +109,6 @@ def validate_kernel_env(kernel_env):
     if not os.path.isfile(kernel_env['PYTHONPATH'] + '/lldb/_lldb.so'):
         raise Exception('lldb python libs not found at %s' %
                         kernel_env['PYTHONPATH'])
-    if not os.path.isdir(kernel_env['LD_LIBRARY_PATH']):
-        raise Exception('swift libs not found at %s' %
-                        kernel_env['LD_LIBRARY_PATH'])
     if not os.path.isfile(kernel_env['REPL_SWIFT_PATH']):
         raise Exception('repl_swift binary not found at %s' %
                         kernel_env['REPL_SWIFT_PATH'])
@@ -114,6 +116,20 @@ def validate_kernel_env(kernel_env):
             not os.path.isfile(kernel_env['SWIFT_BUILD_PATH']):
         raise Exception('swift-build binary not found at %s' %
                         kernel_env['SWIFT_BUILD_PATH'])
+    if 'PYTHON_LIBRARY' in kernel_env and \
+            not os.path.isfile(kernel_env['PYTHON_LIBRARY']):
+        raise Exception('python library not found at %s' %
+                        kernel_env['PYTHON_LIBRARY'])
+
+    lib_paths = kernel_env['LD_LIBRARY_PATH'].split(':')
+    for index, lib_path in enumerate(lib_paths):
+        if os.path.isdir(lib_path):
+            continue
+        # First LD_LIBRARY_PATH should contain the swift toolchain libs.
+        if index == 0:
+            raise Exception('swift libs not found at %s' % lib_path)
+        # Other LD_LIBRARY_PATHs may be appended for other libs.
+        raise Exception('shared lib dir not found at %s' % lib_path)
 
 
 def main():
@@ -184,14 +200,26 @@ def parse_args():
         '--xcode-path',
         help='Path to Xcode app bundle')
 
-    parser.add_argument(
+    python_locations = parser.add_mutually_exclusive_group()
+    python_locations.add_argument(
         '--swift-python-version',
         help='direct Swift\'s Python interop library to use this version of ' +
              'Python')
-    parser.add_argument(
+    python_locations.add_argument(
         '--swift-python-library',
         help='direct Swift\'s Python interop library to use this Python ' +
              'library')
+    python_locations.add_argument(
+        '--swift-python-use-conda',
+        action='store_true',
+        help='direct Swift\'s Python interop library to use the Python '
+             'from the current conda environment')
+
+    parser.add_argument(
+        '--use-conda-shared-libs',
+        action='store_true',
+        help='set LD_LIBRARY_PATH to search for shared libs installed in '
+             'the current conda environment')
 
     args = parser.parse_args()
     if args.sys_prefix:
@@ -202,10 +230,6 @@ def parse_args():
         args.swift_build = os.path.realpath(args.swift_build)
     if args.xcode_path is not None:
         args.xcode_path = os.path.realpath(args.xcode_path)
-    if args.swift_python_version is not None and \
-            args.swift_python_library is not None:
-        raise Exception('Should not specify --swift-python-version and ' +
-                        '--swift-python-library at the same time.')
     return args
 
 
