@@ -63,6 +63,9 @@ swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, t
 
 Extract the Swift toolchain somewhere.
 
+Important note about CUDA/CUDNN: You should install them on your system without using Conda, because Conda's CUDNN is
+too old to work with the Swift toolchain's TensorFlow. (As of 2019-04-08, Swift for TensorFlow requires CUDNN 7.5, but Conda only has CUDNN 7.3).
+
 #### 2. Initialize environment
 
 Create a Conda environment and install some packages in it:
@@ -73,19 +76,7 @@ conda activate swift-tensorflow
 conda install jupyter numpy matplotlib
 ```
 
-#### (Optional) 3. Install CUDA
-
-If you want to use a Swift toolchain with CUDA, and if you have not installed CUDA on your system using other means, then install CUDA in your Conda environment:
-
-```bash
-conda install cudatoolkit cudnn
-```
-
-Important notes about CUDA:
-* Conda does not install NVidia drivers, so you will have to do that yourself through other means.
-* The first time you run a TensorFlow operation from Swift, TensorFlow may spend up to 10 minutes compiling CUDA kernels.
-
-#### 4. Register kernel
+#### 3. Register kernel
 
 Register the Swift kernel with Jupyter:
 
