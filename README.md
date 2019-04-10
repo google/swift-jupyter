@@ -63,8 +63,9 @@ swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, t
 
 Extract the Swift toolchain somewhere.
 
-Important note about CUDA/CUDNN: You should install them on your system without using Conda, because Conda's CUDNN is
-too old to work with the Swift toolchain's TensorFlow. (As of 2019-04-08, Swift for TensorFlow requires CUDNN 7.5, but Conda only has CUDNN 7.3).
+Important note about CUDA/CUDNN: If you are using a CUDA toolchain, then you should install CUDA and CUDNN on your system
+without using Conda, because Conda's CUDNN is too old to work with the Swift toolchain's TensorFlow. (As of 2019-04-08,
+Swift for TensorFlow requires CUDNN 7.5, but Conda only has CUDNN 7.3).
 
 #### 2. Initialize environment
 
