@@ -18,6 +18,7 @@ import glob
 import json
 import lldb
 import os
+import stat
 import re
 import shlex
 import shutil
@@ -187,16 +188,56 @@ class SwiftKernel(Kernel):
         This must happen after package installation, because the ClangImporter
         does not see modulemap files that appear after it has started."""
 
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Initializing Swift...\n'
+        })
+
         self._init_repl_process()
         self._init_kernel_communicator()
         self._init_int_bitwidth()
         self._init_sigint_handler()
+        self._init_installed_packages()
 
         # We do completion by default when the toolchain has the
         # SBTarget.CompleteCode API.
         # The user can disable/enable using "%disableCompletion" and
         # "%enableCompletion".
         self.completion_enabled = hasattr(self.target, 'CompleteCode')
+        
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Swift initialization complete!\n'
+        })
+
+
+    def _init_installed_packages(self):
+        # == dlopen the shared lib prepared during package install ==
+
+        swift_import_search_path = os.environ.get('SWIFT_IMPORT_SEARCH_PATH')
+        if swift_import_search_path is None:
+            return
+        lib_filename = os.path.join(swift_import_search_path, 'libjupyterInstalledPackages.so')
+        if not os.path.isfile(lib_filename):
+            return
+
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Loading library...\n'
+        })
+        dynamic_load_code = textwrap.dedent("""\
+            import func Glibc.dlopen
+            dlopen(%s, RTLD_NOW)
+        """ % json.dumps(lib_filename))
+        dynamic_load_result = self._execute(dynamic_load_code)
+        if not isinstance(dynamic_load_result, SuccessWithValue):
+            raise PackageInstallException(
+                    'Install Error: dlopen error: %s' % \
+                            str(dynamic_load_result))
+        if dynamic_load_result.result.description.strip() == 'nil':
+            raise PackageInstallException('Install Error: dlopen error. Run '
+                                        '`String(cString: dlerror())` to see '
+                                        'the error message.')
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
@@ -383,15 +424,39 @@ class SwiftKernel(Kernel):
         processed_lines = []
         all_packages = []
         all_swiftpm_flags = []
+        user_install_location = None
         for index, line in enumerate(code.split('\n')):
+            line, install_location = self._process_install_location_line(line)
             line, swiftpm_flags = self._process_install_swiftpm_flags_line(
                     line)
             all_swiftpm_flags += swiftpm_flags
             line, packages = self._process_install_line(index, line)
             processed_lines.append(line)
             all_packages += packages
+            if install_location: user_install_location = install_location
+
+        self._prepare_install_location(user_install_location)
         self._install_packages(all_packages, all_swiftpm_flags)
         return '\n'.join(processed_lines)
+
+    def _process_install_location_line(self, line):
+        install_location_match = re.match(
+                r'^\s*%install-location (.*)$', line)
+        if install_location_match is None:
+            return line, None
+
+        install_location = install_location_match.group(1)
+        try:
+            install_location = string.Template(install_location).substitute({"cwd": os.getcwd()})
+        except KeyError as e:
+            raise PackageInstallException(
+                    'Line %d: Invalid template argument %s' % (line_index + 1,
+                                                               str(e)))
+        except ValueError as e:
+            raise PackageInstallException(
+                    'Line %d: %s' % (line_index + 1, str(e)))
+
+        return '', install_location
 
     def _process_install_swiftpm_flags_line(self, line):
         install_swiftpm_flags_match = re.match(
@@ -426,6 +491,34 @@ class SwiftKernel(Kernel):
             'products': parsed[1:],
         }]
 
+    def _prepare_install_location(self, install_location):
+        swift_import_search_path = os.environ.get('SWIFT_IMPORT_SEARCH_PATH')
+        if swift_import_search_path is None:
+            raise PackageInstallException(
+                    'Install Error: Cannot install packages because '
+                    'SWIFT_IMPORT_SEARCH_PATH is not specified.')
+
+        if install_location is None:
+            os.makedirs(swift_import_search_path, exist_ok=True)
+            return
+
+        os.makedirs(install_location, exist_ok=True)
+        # ToDo - verify the above directory actually exists
+
+        # symlink 'modules' to the user-specified location
+        # Remove existing 'modules' if it is already a symlink
+        try:
+            if stat.S_ISLNK(os.lstat(swift_import_search_path).st_mode):
+                os.unlink(swift_import_search_path)
+        except FileNotFoundError as e:
+            pass
+        except Error as e:
+            raise PackageInstallException(
+                    'Line %d: %s' % (line_index + 1, str(e)))
+
+        print("symlinking")
+        os.symlink(install_location, swift_import_search_path, target_is_directory=True)
+
     def _install_packages(self, packages, swiftpm_flags):
         if len(packages) == 0 and len(swiftpm_flags) == 0:
             return
@@ -458,7 +551,7 @@ class SwiftKernel(Kernel):
         # - ask SwiftPM to build that package
         # - copy all the .swiftmodule and module.modulemap files that SwiftPM
         #   created to SWIFT_IMPORT_SEARCH_PATH
-        # - dlopen the .so file that SwiftPM created
+        # - Prepare .so file created by SwiftPM to dlopen in _init_swift
 
         # == Create the SwiftPM package ==
 
@@ -562,36 +655,9 @@ class SwiftKernel(Kernel):
             os.makedirs(modulemap_dest, exist_ok=True)
             shutil.copy(filename, modulemap_dest)
 
-        # == dlopen the shared lib ==
+        # Copy .so file too, so it can be loaded even if no packages were compiled
+        shutil.copy(lib_filename, swift_import_search_path)
 
-        self.send_response(self.iopub_socket, 'stream', {
-            'name': 'stdout',
-            'text': 'Initializing Swift...\n'
-        })
-        self._init_swift()
-
-        self.send_response(self.iopub_socket, 'stream', {
-            'name': 'stdout',
-            'text': 'Loading library...\n'
-        })
-        dynamic_load_code = textwrap.dedent("""\
-            import func Glibc.dlopen
-            dlopen(%s, RTLD_NOW)
-        """ % json.dumps(lib_filename))
-        dynamic_load_result = self._execute(dynamic_load_code)
-        if not isinstance(dynamic_load_result, SuccessWithValue):
-            raise PackageInstallException(
-                    'Install Error: dlopen error: %s' % \
-                            str(dynamic_load_result))
-        if dynamic_load_result.result.description.strip() == 'nil':
-            raise PackageInstallException('Install Error: dlopen error. Run '
-                                        '`String(cString: dlerror())` to see '
-                                        'the error message.')
-
-        self.send_response(self.iopub_socket, 'stream', {
-            'name': 'stdout',
-            'text': 'Installation complete!\n'
-        })
         self.already_installed_packages = True
 
     def _execute(self, code):

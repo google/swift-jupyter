@@ -38,7 +38,7 @@ args += sys.argv[1:]
 package_install_scratchwork_base = tempfile.mkdtemp()
 swift_import_search_path = os.path.join(package_install_scratchwork_base,
                                         'modules')
-os.makedirs(swift_import_search_path, exist_ok=True)
+os.makedirs(package_install_scratchwork_base, exist_ok=True)
 
 # Launch "swift_kernel.py".
 process = subprocess.Popen(
