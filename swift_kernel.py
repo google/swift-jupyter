@@ -503,7 +503,6 @@ class SwiftKernel(Kernel):
             return
 
         os.makedirs(install_location, exist_ok=True)
-        # ToDo - verify the above directory actually exists
 
         # symlink 'modules' to the user-specified location
         # Remove existing 'modules' if it is already a symlink
@@ -516,7 +515,6 @@ class SwiftKernel(Kernel):
             raise PackageInstallException(
                     'Line %d: %s' % (line_index + 1, str(e)))
 
-        print("symlinking")
         os.symlink(install_location, swift_import_search_path, target_is_directory=True)
 
     def _install_packages(self, packages, swiftpm_flags):
@@ -540,6 +538,16 @@ class SwiftKernel(Kernel):
             raise PackageInstallException(
                     'Install Error: Cannot install packages because '
                     'SWIFT_IMPORT_SEARCH_PATH is not specified.')
+
+        install_lock_file = os.path.join(swift_import_search_path, 'install_lock')
+        if os.path.exists(install_lock_file):
+            raise PackageInstallException(
+                    'Install Error: Cannot install packages. '
+                    'Found lock file in install location. '
+                    'Please, wait for other installations to finish.')
+
+        with open(install_lock_file, 'w'): pass
+
 
         scratchwork_base_path = os.path.dirname(swift_import_search_path)
         package_base_path = os.path.join(scratchwork_base_path, 'package')
@@ -657,6 +665,9 @@ class SwiftKernel(Kernel):
 
         # Copy .so file too, so it can be loaded even if no packages were compiled
         shutil.copy(lib_filename, swift_import_search_path)
+
+        # Remove lock file
+        os.unlink(install_lock_file)
 
         self.already_installed_packages = True
 
