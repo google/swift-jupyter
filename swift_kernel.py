@@ -18,6 +18,7 @@ import glob
 import json
 import lldb
 import os
+import stat
 import re
 import shlex
 import shutil
@@ -383,15 +384,39 @@ class SwiftKernel(Kernel):
         processed_lines = []
         all_packages = []
         all_swiftpm_flags = []
+        user_install_location = None
         for index, line in enumerate(code.split('\n')):
+            line, install_location = self._process_install_location_line(line)
             line, swiftpm_flags = self._process_install_swiftpm_flags_line(
                     line)
             all_swiftpm_flags += swiftpm_flags
             line, packages = self._process_install_line(index, line)
             processed_lines.append(line)
             all_packages += packages
+            if install_location: user_install_location = install_location
+
+        self._prepare_install_location(user_install_location)
         self._install_packages(all_packages, all_swiftpm_flags)
         return '\n'.join(processed_lines)
+
+    def _process_install_location_line(self, line):
+        install_location_match = re.match(
+                r'^\s*%install-location (.*)$', line)
+        if install_location_match is None:
+            return line, None
+
+        install_location = install_location_match.group(1)
+        try:
+            install_location = string.Template(install_location).substitute({"cwd": os.getcwd()})
+        except KeyError as e:
+            raise PackageInstallException(
+                    'Line %d: Invalid template argument %s' % (line_index + 1,
+                                                               str(e)))
+        except ValueError as e:
+            raise PackageInstallException(
+                    'Line %d: %s' % (line_index + 1, str(e)))
+
+        return '', install_location
 
     def _process_install_swiftpm_flags_line(self, line):
         install_swiftpm_flags_match = re.match(
@@ -426,6 +451,33 @@ class SwiftKernel(Kernel):
             'products': parsed[1:],
         }]
 
+    def _prepare_install_location(self, install_location):
+        swift_import_search_path = os.environ.get('SWIFT_IMPORT_SEARCH_PATH')
+        if swift_import_search_path is None:
+            raise PackageInstallException(
+                    'Install Error: Cannot install packages because '
+                    'SWIFT_IMPORT_SEARCH_PATH is not specified.')
+
+        scratchwork_base_path = os.path.dirname(swift_import_search_path)
+        if install_location is not None:
+            # symlink to the specified location
+            # Remove existing base if it is already a symlink
+            os.makedirs(install_location, exist_ok=True)
+            try:
+                if stat.S_ISLNK(os.lstat(scratchwork_base_path).st_mode):
+                    os.unlink(scratchwork_base_path)
+            except FileNotFoundError as e:
+                pass
+            except Error as e:
+                raise PackageInstallException(
+                    'Line %d: %s' % (line_index + 1, str(e)))
+            os.symlink(install_location, scratchwork_base_path, target_is_directory=True)
+
+        package_base_path = os.path.join(scratchwork_base_path, 'package')
+        os.makedirs(package_base_path, exist_ok=True)
+        os.makedirs(swift_import_search_path, exist_ok=True)
+        return
+
     def _install_packages(self, packages, swiftpm_flags):
         if len(packages) == 0 and len(swiftpm_flags) == 0:
             return
@@ -450,7 +502,6 @@ class SwiftKernel(Kernel):
 
         scratchwork_base_path = os.path.dirname(swift_import_search_path)
         package_base_path = os.path.join(scratchwork_base_path, 'package')
-        os.makedirs(package_base_path, exist_ok=True)
 
         # Summary of how this works:
         # - create a SwiftPM package that depends on all the packages that
@@ -570,10 +621,6 @@ class SwiftKernel(Kernel):
         })
         self._init_swift()
 
-        self.send_response(self.iopub_socket, 'stream', {
-            'name': 'stdout',
-            'text': 'Loading library...\n'
-        })
         dynamic_load_code = textwrap.dedent("""\
             import func Glibc.dlopen
             dlopen(%s, RTLD_NOW)
