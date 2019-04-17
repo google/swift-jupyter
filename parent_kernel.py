@@ -36,9 +36,9 @@ args += sys.argv[1:]
 # SWIFT_IMPORT_SEARCH_PATH environment in the child to tell LLDB where module
 # files go.
 package_install_scratchwork_base = tempfile.mkdtemp()
+package_install_scratchwork_base = os.path.join(package_install_scratchwork_base, 'swift-install')
 swift_import_search_path = os.path.join(package_install_scratchwork_base,
                                         'modules')
-os.makedirs(package_install_scratchwork_base, exist_ok=True)
 
 # Launch "swift_kernel.py".
 process = subprocess.Popen(
