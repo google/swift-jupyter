@@ -22,6 +22,7 @@ import sys
 
 from jupyter_client.kernelspec import KernelSpecManager
 from IPython.utils.tempdir import TemporaryDirectory
+from glob import glob
 
 kernel_code_name_allowed_chars = "-."
 
@@ -95,7 +96,8 @@ def make_kernel_env(args):
     if args.swift_python_library is not None:
         kernel_env['PYTHON_LIBRARY'] = args.swift_python_library
     if args.swift_python_use_conda:
-        kernel_env['PYTHON_LIBRARY'] = sys.prefix + '/lib/libpython3.6m.so'
+        libpython = glob(sys.prefix+'/lib/libpython*.so')[0]
+        kernel_env['PYTHON_LIBRARY'] = libpython
 
     if args.use_conda_shared_libs:
         kernel_env['LD_LIBRARY_PATH'] += ':' + sys.prefix + '/lib'
