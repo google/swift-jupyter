@@ -30,6 +30,7 @@ import tempfile
 import textwrap
 import time
 import threading
+import sqlite3
 
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
@@ -591,19 +592,32 @@ class SwiftKernel(Kernel):
 
         # == Copy .swiftmodule and modulemap files to SWIFT_IMPORT_SEARCH_PATH ==
 
-        for filename in glob.glob(os.path.join(bin_dir, '*.swiftmodule')):
+        build_db_file = os.path.join(package_base_path, '.build', 'build.db')
+        if not os.path.exists(build_db_file):
+            raise PackageInstallException('build.db is missing')
+
+        # Toolchain root
+        swift_root = os.sep.join(swift_build_path.split(os.sep)[:2])
+        # Query to get build files list from build.db (but ignore anything from toolchain or /usr/lib)
+        # TODO filter out system dependencies more reliably
+        SQL_FILES_SELECT = f'''
+            SELECT SUBSTR(key, 2) FROM 'key_names' WHERE key LIKE ?
+            AND key NOT LIKE "N{swift_root}%" AND key NOT LIKE "N/usr/lib/%"
+        '''
+
+        # Connect to build.db
+        db_connection = sqlite3.connect(build_db_file)
+        cursor = db_connection.cursor()
+
+        # Process  *.swiftmodules files
+        cursor.execute(SQL_FILES_SELECT, ['%.swiftmodule'])
+        swift_modules = [row[0] for row in cursor.fetchall()]
+        for filename in swift_modules:
             shutil.copy(filename, swift_import_search_path)
 
-        # The modulemap files appear in a few different places. Add all of
-        # them.
-        # TODO: Figure out if there is a principled way to figure out where
-        # all the modulemap files are.
-        modulemap_files = glob.glob(
-                os.path.join(bin_dir, '**/module.modulemap'), recursive=True)
-        modulemap_files += glob.glob(
-                os.path.join(package_base_path,
-                             '.build/checkouts/**/module.modulemap'),
-                recursive=True)
+        # Process modulemap files
+        cursor.execute(SQL_FILES_SELECT, ['%/module.modulemap'])
+        modulemap_files = [row[0] for row in cursor.fetchall()]
         for index, filename in enumerate(modulemap_files):
             # Create a separate directory for each modulemap file because the
             # ClangImporter requires that they are all named
@@ -611,7 +625,21 @@ class SwiftKernel(Kernel):
             modulemap_dest = os.path.join(swift_import_search_path,
                                           'modulemap-%d' % index)
             os.makedirs(modulemap_dest, exist_ok=True)
-            shutil.copy(filename, modulemap_dest)
+            src_folder, src_filename = os.path.split(filename)
+            dst_path = os.path.join(modulemap_dest, src_filename)
+            # Make all relative header paths in module.modulemap absolute
+            # because we copy files to different location
+            with open(filename, encoding='utf8') as file:
+                modulemap_contents = file.read()
+                modulemap_contents = re.sub(
+                    r'header\s+"(.*?)"',
+                    lambda m: 'header "%s"' %
+                        (m.group(1) if os.path.isabs(m.group(1)) else os.path.abspath(os.path.join(src_folder, m.group(1)))),
+                    modulemap_contents
+                )
+                outfile = open(dst_path, 'w', encoding='utf8')
+                outfile.write(modulemap_contents)
+                outfile.close()
 
         # == dlopen the shared lib ==
 
