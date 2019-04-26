@@ -31,6 +31,7 @@ import textwrap
 import time
 import threading
 import sqlite3
+import json
 
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
@@ -495,6 +496,12 @@ class SwiftKernel(Kernel):
                     'Install Error: Cannot install packages because '
                     'SWIFT_BUILD_PATH is not specified.')
 
+        swift_package_path = os.environ.get('SWIFT_PACKAGE_PATH')
+        if swift_package_path is None:
+            raise PackageInstallException(
+                    'Install Error: Cannot install packages because '
+                    'SWIFT_PACKAGE_PATH is not specified.')
+
         swift_import_search_path = os.environ.get('SWIFT_IMPORT_SEARCH_PATH')
         if swift_import_search_path is None:
             raise PackageInstallException(
@@ -596,28 +603,49 @@ class SwiftKernel(Kernel):
         if not os.path.exists(build_db_file):
             raise PackageInstallException('build.db is missing')
 
-        # Toolchain root
-        swift_root = os.sep.join(swift_build_path.split(os.sep)[:2])
-        # Query to get build files list from build.db (but ignore anything from toolchain or /usr/lib)
-        # TODO filter out system dependencies more reliably
-        SQL_FILES_SELECT = f'''
-            SELECT SUBSTR(key, 2) FROM 'key_names' WHERE key LIKE ?
-            AND key NOT LIKE "N{swift_root}%" AND key NOT LIKE "N/usr/lib/%"
-        '''
+        # Execute swift-package show-dependencies to get all dependencies' paths
+        dependencies_result = subprocess.run(
+            [swift_package_path, 'show-dependencies', '--format', 'json'],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cwd=package_base_path)
+        dependencies_json = dependencies_result.stdout.decode('utf8')
+        dependencies_obj = json.loads(dependencies_json)
+
+        def flatten_deps_paths(dep):
+            paths = []
+            paths.append(dep["path"])
+            if dep["dependencies"]:
+                for d in dep["dependencies"]:
+                    paths.extend(flatten_deps_paths(d))
+            return paths
+
+        # Make list of paths where we expect .swiftmodule and .modulemap files of dependencies
+        dependencies_paths = [package_base_path]
+        dependencies_paths = flatten_deps_paths(dependencies_obj)
+        dependencies_paths = list(set(dependencies_paths))
+
+        def is_valid_dependency(path):
+            for p in dependencies_paths:
+                if path.startswith(p): return True
+            return False
+
+        # Query to get build files list from build.db
+        # SUBSTR because string starts with "N" (why?)
+        SQL_FILES_SELECT = "SELECT SUBSTR(key, 2) FROM 'key_names' WHERE key LIKE ?"
 
         # Connect to build.db
         db_connection = sqlite3.connect(build_db_file)
         cursor = db_connection.cursor()
 
-        # Process  *.swiftmodules files
+        # Process *.swiftmodules files
         cursor.execute(SQL_FILES_SELECT, ['%.swiftmodule'])
-        swift_modules = [row[0] for row in cursor.fetchall()]
+        swift_modules = [row[0] for row in cursor.fetchall() if is_valid_dependency(row[0])]
         for filename in swift_modules:
             shutil.copy(filename, swift_import_search_path)
 
         # Process modulemap files
         cursor.execute(SQL_FILES_SELECT, ['%/module.modulemap'])
-        modulemap_files = [row[0] for row in cursor.fetchall()]
+        modulemap_files = [row[0] for row in cursor.fetchall() if is_valid_dependency(row[0])]
         for index, filename in enumerate(modulemap_files):
             # Create a separate directory for each modulemap file because the
             # ClangImporter requires that they are all named
@@ -628,7 +656,7 @@ class SwiftKernel(Kernel):
             src_folder, src_filename = os.path.split(filename)
             dst_path = os.path.join(modulemap_dest, src_filename)
             # Make all relative header paths in module.modulemap absolute
-            # because we copy files to different location
+            # because we copy file to different location
             with open(filename, encoding='utf8') as file:
                 modulemap_contents = file.read()
                 modulemap_contents = re.sub(
@@ -637,9 +665,8 @@ class SwiftKernel(Kernel):
                         (m.group(1) if os.path.isabs(m.group(1)) else os.path.abspath(os.path.join(src_folder, m.group(1)))),
                     modulemap_contents
                 )
-                outfile = open(dst_path, 'w', encoding='utf8')
-                outfile.write(modulemap_contents)
-                outfile.close()
+                with open(dst_path, 'w', encoding='utf8') as outfile:
+                    outfile.write(modulemap_contents)
 
         # == dlopen the shared lib ==
 
