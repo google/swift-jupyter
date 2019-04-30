@@ -254,10 +254,10 @@ directive `%install-extra-include-command`, followed by a shell command that
 prints "-I/path/to/extra/include/files". For example,
 
 ```
-// Puts all the headers in /usr/local/include/glib-2.0 on the header search path.
-%install-extra-include-command echo -I/usr/local/include/glib-2.0
+// Puts the headers in /usr/include/glib-2.0 on the header search path.
+%install-extra-include-command echo -I/usr/include/glib-2.0
 
-// Puts all the headers returned by `pkg-config` on the header search path.
+// Puts the headers returned by `pkg-config` on the header search path.
 %install-extra-include-command pkg-config --cflags-only-I glib-2.0
 ```
 
