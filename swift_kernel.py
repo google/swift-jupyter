@@ -699,13 +699,13 @@ class SwiftKernel(Kernel):
             # Create a separate directory for each modulemap file because the
             # ClangImporter requires that they are all named
             # "module.modulemap".
-            modulemap_dest = os.path.join(swift_import_search_path,
-                                          'modulemap-%d' % index)
-            os.makedirs(modulemap_dest, exist_ok=True)
-            src_folder, src_filename = os.path.split(filename)
-            dst_path = os.path.join(modulemap_dest, src_filename)
+            # Use the module name to prevent two modulema[s for the same
+            # depndency ending up in multiple directories after several
+            # installations, causing the kernel to end up in a bad state.
             # Make all relative header paths in module.modulemap absolute
-            # because we copy file to different location
+            # because we copy file to different location.
+
+            src_folder, src_filename = os.path.split(filename)
             with open(filename, encoding='utf8') as file:
                 modulemap_contents = file.read()
                 modulemap_contents = re.sub(
@@ -714,6 +714,13 @@ class SwiftKernel(Kernel):
                         (m.group(1) if os.path.isabs(m.group(1)) else os.path.abspath(os.path.join(src_folder, m.group(1)))),
                     modulemap_contents
                 )
+
+                module_match = re.match(r'module\s+([^\s]+)\s.*{', modulemap_contents)
+                module_name = module_match.group(1) if module_match is not None else str(index)
+                modulemap_dest = os.path.join(swift_import_search_path, 'modulemap-%s' % module_name)
+                os.makedirs(modulemap_dest, exist_ok=True)
+                dst_path = os.path.join(modulemap_dest, src_filename)
+
                 with open(dst_path, 'w', encoding='utf8') as outfile:
                     outfile.write(modulemap_contents)
 
