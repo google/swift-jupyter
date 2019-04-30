@@ -873,6 +873,17 @@ class SwiftKernel(Kernel):
 
     def do_execute(self, code, silent, store_history=True,
                    user_expressions=None, allow_stdin=False):
+
+        # Return early if the code is empty or whitespace, to avoid
+        # initializing Swift and preventing package installs.
+        if len(code) == 0 or code.isspace():
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+
         # Package installs must be done before initializing Swift (see doc
         # comment in `_init_swift`).
         try:
@@ -884,16 +895,6 @@ class SwiftKernel(Kernel):
         except Exception as e:
             self._send_exception_report('_process_installs', e)
             raise e
-
-        # Return early if the code is empty or whitespace, to avoid
-        # initializing Swift and preventing package installs.
-        if len(code) == 0 or code.isspace():
-            return {
-                'status': 'ok',
-                'execution_count': self.execution_count,
-                'payload': [],
-                'user_expressions': {}
-            }
 
         if not hasattr(self, 'debugger'):
             self._init_swift()
