@@ -194,8 +194,6 @@ display.display(pd.DataFrame.from_records([["col 1": 3, "col 2": 5], ["col 1": 8
 
 ## %install directives
 
-**Note: Requires a Swift for TensorFlow toolchain built on or after March 20, 2019.**
-
 `%install` directives let you install SwiftPM packages so that your notebook
 can import them:
 
@@ -218,9 +216,56 @@ The next argument(s) to `%install` are the products that you want to install fro
 * You must install all your packages in the first cell that you execute. (It
   will refuse to install packages, and print out an error message explaining
   why, if you try to install packages in later cells.)
-* Downloads and build artifacts are not cached.
 * `%install-swiftpm-flags` apply to all packages that you are installing; there
   is no way to specify different flags for different packages.
+* Packages that use system libraries may require you to manually specify some
+  header search paths. See the `%install-extra-include-command` section below.
+
+### Troubleshooting %installs
+
+If you get "expression failed to parse, unknown error" when you try to import a
+package that you installed, there is a way to get a more detailed error
+message.
+
+The cell with the "%install" directives has something like "Working in:
+/tmp/xyzxyzxyzxyz/swift-install" in its output. There is a binary
+`usr/bin/swift` where you extracted the toolchain. Start the binary as follows:
+
+```
+SWIFT_IMPORT_SEARCH_PATH=/tmp/xyzxyzxyzxyz/swift-install/modules <path-to-toolchain>/usr/bin/swift
+```
+
+This gives you an interactive Swift REPL. In the REPL, do:
+```
+import Glibc
+dlopen("/tmp/xyzxyzxyzxyz/swift-install/package/.build/debug/libjupyterInstalledPackages.so", RTLD_NOW)
+
+import TheModuleThatYouHaveTriedToInstall
+```
+
+This should give you a useful error message. If the error message says that
+some header files can't be found, see the section below about
+`%install-extra-include-command`.
+
+### %install-extra-include-command
+
+You can specify extra header files to be put on the header search path. Add a
+directive `%install-extra-include-command`, followed by a shell command that
+prints "-I/path/to/extra/include/files". For example,
+
+```
+// Puts all the headers in /usr/local/include/glib-2.0 on the header search path.
+%install-extra-include-command echo -I/usr/local/include/glib-2.0
+
+// Puts all the headers returned by `pkg-config` on the header search path.
+%install-extra-include-command pkg-config --cflags-only-I glib-2.0
+```
+
+In principle, swift-jupyter should be able to infer the necessary header search
+paths without you needing to manually specify them, but this hasn't been
+implemented yet. See [this forum
+thread](https://forums.fast.ai/t/cant-import-swiftvips/44833/21?u=marcrasi) for
+more information.
 
 ## %include directives
 
