@@ -386,6 +386,7 @@ class SwiftKernel(Kernel):
         processed_lines = []
         all_packages = []
         all_swiftpm_flags = []
+        extra_include_commands = []
         user_install_location = None
         for index, line in enumerate(code.split('\n')):
             line, install_location = self._process_install_location_line(line)
@@ -393,12 +394,17 @@ class SwiftKernel(Kernel):
                     line)
             all_swiftpm_flags += swiftpm_flags
             line, packages = self._process_install_line(index, line)
+            line, extra_include_command = \
+                self._process_extra_include_command_line(line)
+            if extra_include_command:
+                extra_include_commands.append(extra_include_command)
             processed_lines.append(line)
             all_packages += packages
             if install_location: user_install_location = install_location
 
-        self._prepare_install_location(user_install_location)
-        self._install_packages(all_packages, all_swiftpm_flags)
+        self._install_packages(all_packages, all_swiftpm_flags,
+                               extra_include_commands,
+                               user_install_location)
         return '\n'.join(processed_lines)
 
     def _process_install_location_line(self, line):
@@ -419,6 +425,16 @@ class SwiftKernel(Kernel):
                     'Line %d: %s' % (line_index + 1, str(e)))
 
         return '', install_location
+
+    def _process_extra_include_command_line(self, line):
+        extra_include_command_match = re.match(
+                r'^\s*%install-extra-include-command (.*)$', line)
+        if extra_include_command_match is None:
+            return line, None
+
+        extra_include_command = extra_include_command_match.group(1)
+
+        return '', extra_include_command
 
     def _process_install_swiftpm_flags_line(self, line):
         install_swiftpm_flags_match = re.match(
@@ -453,34 +469,22 @@ class SwiftKernel(Kernel):
             'products': parsed[1:],
         }]
 
-    def _prepare_install_location(self, install_location):
-        swift_import_search_path = os.environ.get('SWIFT_IMPORT_SEARCH_PATH')
-        if swift_import_search_path is None:
-            raise PackageInstallException(
-                    'Install Error: Cannot install packages because '
-                    'SWIFT_IMPORT_SEARCH_PATH is not specified.')
-
-        scratchwork_base_path = os.path.dirname(swift_import_search_path)
-        if install_location is not None:
-            # symlink to the specified location
-            # Remove existing base if it is already a symlink
-            os.makedirs(install_location, exist_ok=True)
+    def _link_extra_includes(self, swift_import_search_path, include_dir):
+        for include_file in os.listdir(include_dir):
+            link_name = os.path.join(swift_import_search_path, include_file)
+            target = os.path.join(include_dir, include_file)
             try:
-                if stat.S_ISLNK(os.lstat(scratchwork_base_path).st_mode):
-                    os.unlink(scratchwork_base_path)
+                if stat.S_ISLNK(os.lstat(link_name).st_mode):
+                    os.unlink(link_name)
             except FileNotFoundError as e:
                 pass
             except Error as e:
                 raise PackageInstallException(
-                    'Line %d: %s' % (line_index + 1, str(e)))
-            os.symlink(install_location, scratchwork_base_path, target_is_directory=True)
+                        'Failed to stat scratchwork base path: %s' % str(e))
+            os.symlink(target, link_name)
 
-        package_base_path = os.path.join(scratchwork_base_path, 'package')
-        os.makedirs(package_base_path, exist_ok=True)
-        os.makedirs(swift_import_search_path, exist_ok=True)
-        return
-
-    def _install_packages(self, packages, swiftpm_flags):
+    def _install_packages(self, packages, swiftpm_flags, extra_include_commands,
+                          user_install_location):
         if len(packages) == 0 and len(swiftpm_flags) == 0:
             return
 
@@ -510,6 +514,51 @@ class SwiftKernel(Kernel):
 
         scratchwork_base_path = os.path.dirname(swift_import_search_path)
         package_base_path = os.path.join(scratchwork_base_path, 'package')
+
+        # If the user has specified a custom install location, make a link from
+        # the scratchwork base path to it.
+        if user_install_location is not None:
+            # symlink to the specified location
+            # Remove existing base if it is already a symlink
+            os.makedirs(user_install_location, exist_ok=True)
+            try:
+                if stat.S_ISLNK(os.lstat(scratchwork_base_path).st_mode):
+                    os.unlink(scratchwork_base_path)
+            except FileNotFoundError as e:
+                pass
+            except Error as e:
+                raise PackageInstallException(
+                        'Failed to stat scratchwork base path: %s' % str(e))
+            os.symlink(user_install_location, scratchwork_base_path,
+                       target_is_directory=True)
+
+        # Make the directory containing our synthesized package.
+        os.makedirs(package_base_path, exist_ok=True)
+
+        # Make the directory containing our built modules and other includes.
+        os.makedirs(swift_import_search_path, exist_ok=True)
+
+        # Make links from the install location to extra includes.
+        for include_command in extra_include_commands:
+            result = subprocess.run(include_command, shell=True,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE)
+            if result.returncode != 0:
+                raise PackageInstallException(
+                        '%%install-extra-include-command returned nonzero '
+                        'exit code: %d\nStdout:\n%s\nStderr:\n%s\n' % (
+                                result.returncode,
+                                result.stdout.decode('utf8'),
+                                result.stderr.decode('utf8')))
+            include_dirs = shlex.split(result.stdout.decode('utf8'))
+            for include_dir in include_dirs:
+                if include_dir[0:2] != '-I':
+                    self.log.warn(
+                            'Non "-I" output from '
+                            '%%install-extra-include-command: %s' % include_dir)
+                    continue
+                include_dir = include_dir[2:]
+                self._link_extra_includes(swift_import_search_path, include_dir)
 
         # Summary of how this works:
         # - create a SwiftPM package that depends on all the packages that
