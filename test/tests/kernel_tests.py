@@ -129,10 +129,11 @@ class SwiftKernelTestsBase:
         stdout = output_msgs[0]['content']['text']
         self.assertIn('Fatal error: oops', stdout)
         traceback = output_msgs[1]['content']['traceback']
-        self.assertIn('Current stack trace:', traceback[0])
-        self.assertIn('a() at <Cell %d>:2:24' % a_cell, traceback[1])
-        self.assertIn('b() at <Cell %d>:4:24' % b_cell, traceback[2])
-        self.assertIn('main at <Cell %d>:2:13' % call_cell, traceback[3])
+        all_tracebacks = '\n'.join(traceback)
+        self.assertIn('Current stack trace:', all_tracebacks)
+        self.assertIn('a() at <Cell %d>:2:24' % a_cell, all_tracebacks)
+        self.assertIn('b() at <Cell %d>:4:24' % b_cell, all_tracebacks)
+        self.assertIn('main at <Cell %d>:2:13' % call_cell, all_tracebacks)
 
     def test_interrupt_execution(self):
         # Execute something to trigger debugger initialization, so that the
