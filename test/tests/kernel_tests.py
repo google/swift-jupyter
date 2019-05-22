@@ -86,8 +86,7 @@ class SwiftKernelTestsBase:
            print("gradient of square at 5 is", gradient(at: 5, in: square))
         """)
         self.assertEqual(reply['content']['status'], 'error')
-        self.assertIn("note: cannot differentiate an external function "\
-                      "that has not been marked '@differentiable'",
+        self.assertIn("cannot differentiate functions that have not been marked '@differentiable'",
                       reply['content']['traceback'][0])
 
     def test_gradient_across_cells(self):
