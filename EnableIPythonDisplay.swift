@@ -81,7 +81,7 @@ extension PythonObject {
 
 IPythonDisplay.enable()
 
-func display(base64Png: String) {
+func display(base64EncodedPNG: String) {
   let displayImage = Python.import("IPython.display")
   let codecs = Python.import("codecs")
   let imageData = codecs.decode(Python.bytes(base64Png, encoding: "utf8"), encoding: "base64")
