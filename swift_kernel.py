@@ -324,6 +324,18 @@ class SwiftKernel(Kernel):
             'text': 'Completion enabled!\n'
         })
 
+    def _handle_system_command(self, rest_of_line):
+        process = subprocess.Popen(rest_of_line,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            shell=True)
+        process.wait()
+        command_result = process.stdout.read().decode('utf-8')
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Response:\n%s' % command_result
+        })
+
     def _preprocess_line(self, line_index, line):
         """Returns the preprocessed line.
 
@@ -411,6 +423,10 @@ class SwiftKernel(Kernel):
         install_location_match = re.match(
                 r'^\s*%install-location (.*)$', line)
         if install_location_match is None:
+            system_match = re.match(r'^\s*%system (.*)$', line)
+            if system_match is not None:
+                self._handle_system_command(system_match.group(1))
+
             return line, None
 
         install_location = install_location_match.group(1)
