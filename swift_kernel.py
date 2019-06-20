@@ -389,6 +389,7 @@ class SwiftKernel(Kernel):
         extra_include_commands = []
         user_install_location = None
         for index, line in enumerate(code.split('\n')):
+            line = self._process_system_command_line(line)
             line, install_location = self._process_install_location_line(line)
             line, swiftpm_flags = self._process_install_swiftpm_flags_line(
                     line)
@@ -468,6 +469,28 @@ class SwiftKernel(Kernel):
             'spec': spec,
             'products': parsed[1:],
         }]
+
+    def _process_system_command_line(self, line):                  
+        system_match = re.match(r'^\s*%system (.*)$', line)
+        if system_match is None:
+            return line
+
+        if hasattr(self, 'debugger'):
+            raise PackageInstallException(
+                    'System commands can only run in the first cell.')
+
+        rest_of_line = system_match.group(1)
+        process = subprocess.Popen(rest_of_line,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            shell=True)
+        process.wait()
+        command_result = process.stdout.read().decode('utf-8')
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': '%s' % command_result
+        })
+        return ''
 
     def _link_extra_includes(self, swift_import_search_path, include_dir):
         for include_file in os.listdir(include_dir):
