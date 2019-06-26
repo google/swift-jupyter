@@ -128,10 +128,8 @@ instructions, with some modifications:
 * Also install the Python 3 development headers. (For Ubuntu 18.04,
   `sudo apt-get install libpython3-dev`). The LLDB build will automatically
   find these and build with Python 3 support.
-* Instead of running `utils/build-script`, run
-  `SWIFT_PACKAGE=tensorflow_linux,no_test ./swift/utils/build-toolchain local.swift`
-  or `SWIFT_PACKAGE=tensorflow_linux ./swift/utils/build-toolchain local.swift,gpu,no_test`
-  (depending on whether you want to build tensorflow with GPU support).
+* Instead of running `utils/build-script`, run `utils/build-toolchain-tensorflow`,
+  so that you build a whole toolchain that includes LLDB.
 
 This will create a tar file containing the full toolchain. You can now proceed
 with the installation instructions from the previous section.
