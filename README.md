@@ -216,7 +216,7 @@ func function(_ x: Float)->Float {
     return 1.0/x
 }
 
-var agg_renderer: AGGRenderer = AGGRenderer()
+var aggRenderer = AGGRenderer()
 var plotTitle: PlotTitle = PlotTitle()
 var lineGraph: LineGraph = LineGraph()
 lineGraph.addFunction(function, minX: -5.0,
