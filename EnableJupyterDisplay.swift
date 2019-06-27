@@ -39,10 +39,10 @@ enum JupyterDisplay {
         }
 
         init(messageID: String = UUID().uuidString,
-                    username: String = "kernel",
-                    session: String,
-                    messageType: String = "display_data",
-                    version: String = "5.2") {
+             username: String = "kernel",
+             session: String,
+             messageType: String = "display_data",
+             version: String = "5.2") {
             self.messageID = messageID
             self.username = username
             self.session = session
