@@ -217,16 +217,15 @@ func function(_ x: Float)->Float {
 }
 
 var aggRenderer = AGGRenderer()
-var plotTitle: PlotTitle = PlotTitle()
-var lineGraph: LineGraph = LineGraph()
+var lineGraph = LineGraph()
 lineGraph.addFunction(function, minX: -5.0,
                       maxX: 5.0,
                       numberOfSamples: 400,
                       label: "1/x",
-                      color: Color.orange)
+                      color: .orange)
 lineGraph.plotTitle = "FUNCTION"
-lineGraph.drawGraph(renderer: agg_renderer)
-display(base64EncodedPNG: agg_renderer.base64Png())
+lineGraph.drawGraph(renderer: aggRenderer)
+display(base64EncodedPNG: aggRenderer.base64Png())
 ```
 
 ![Screenshot of running the above snippet of code in Jupyter](./screenshots/display_swiftplot.png)
