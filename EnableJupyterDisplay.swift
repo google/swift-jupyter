@@ -1,3 +1,17 @@
+// Copyright 2019 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #if canImport(Cryptor)
 import Cryptor
 #endif
@@ -5,8 +19,8 @@ import Cryptor
 import Foundation
 
 enum JupyterDisplay {
-    struct Header: Codable {
-        let msgId: String
+    struct Header: Encodable {
+        let messageID: String
         let username: String
         let session: String
         var date: String {
@@ -17,48 +31,45 @@ enum JupyterDisplay {
             formatter.locale = Locale(identifier: "en_US_POSIX")
             return formatter.string(from: currentDate)
         }
-        let msgType: String
+        let messageType: String
         let version: String
+        private enum CodingKeys: String, CodingKey {
+            case messageID = "msg_id"
+            case messageType = "msg_type"
+        }
 
-        public init(
-            msgId: String = UUID().uuidString,
-            username: String = "kernel",
-            session: String,
-            msgType: String = "display_data",
-            version: String = "5.2"
-            ) {
-            self.msgId = msgId
+        public init(messageID: String = UUID().uuidString,
+                    username: String = "kernel",
+                    session: String,
+                    messageType: String = "display_data",
+                    version: String = "5.2") {
+            self.messageID = messageID
             self.username = username
             self.session = session
-            self.msgType = msgType
+            self.messageType = messageType
             self.version = version
         }
 
-        public func toJSON() -> String {
-            do {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                encoder.keyEncodingStrategy = .convertToSnakeCase
-                let jsonData = try encoder.encode(self)
-                let jsonString = String(data: jsonData, encoding: .utf8)!
-                return jsonString
-            }
-            catch {
-                return "{}"
-            }
+        public var json: String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            guard let jsonData = try? encoder.encode(self) else { return "{}" }
+            let jsonString = String(data: jsonData, encoding: .utf8)!
+            return jsonString
         }
     }
 
     struct Message {
-        var msgType: String = "display_data"
+        var messageType: String = "display_data"
         var delimiter = "<IDS|MSG>"
         var key: String = ""
         var header: Header
-        var metaData: String = "{}"
+        var metadata: String = "{}"
         var content: String = "{}"
         var hmacSignature: String {
             #if canImport(Cryptor)
-            let data = Data((header.toJSON()+parentHeader+metaData+content).utf8)
+            let data = Data((header.json+parentHeader+metadata+content).utf8)
             let keyData = Data(key.utf8)
             let dataHex = data.map{ String(format: "%02x", $0) }.joined()
             let keyHex = keyData.map{ String(format: "%02x", $0) }.joined()
@@ -71,15 +82,16 @@ enum JupyterDisplay {
         }
         var messageParts: [KernelCommunicator.BytesReference] {
             return [
-                bytes(msgType),
+                bytes(messageType),
                 bytes(delimiter),
                 bytes(hmacSignature),
-                bytes(header.toJSON()),
+                bytes(header.json),
                 bytes(parentHeader),
-                bytes(metaData),
+                bytes(metadata),
                 bytes(content)
             ]
         }
+
         init(content: String = "{}") {
             header = Header(
                 username: JupyterKernel.communicator.jupyterSession.username,
@@ -88,19 +100,18 @@ enum JupyterDisplay {
             self.content = content
             key = JupyterKernel.communicator.jupyterSession.key
             #if !canImport(Cryptor)
-            if (!key.isEmpty) {
+            if !key.isEmpty {
                 fatalError("""
-                            Unable to import Cryptor to perform message signing.
-                            Add Cryptor as a dependency, or disable message signing in Jupyter as follows:
-                            jupyter notebook --Session.key='b\"\"'\n
-                            """
-                )
+                           Unable to import Cryptor to perform message signing.
+                           Add Cryptor as a dependency, or disable message signing in Jupyter as follows:
+                           jupyter notebook --Session.key='b\"\"'\n
+                           """)
             }
             #endif
         }
     }
 
-    struct PNGImageData: Codable {
+    struct PNGImageData: Encodable {
         let image: String
         let text = "<IPython.core.display.Image object>"
         init(base64EncodedPNG: String) {
@@ -112,24 +123,20 @@ enum JupyterDisplay {
         }
     }
 
-    struct MessageContent: Codable {
+    struct MessageContent: Encodable {
         let metadata = "{}"
         let transient = "{}"
         let data: PNGImageData
         init(base64EncodedPNG: String) {
             data = PNGImageData(base64EncodedPNG: base64EncodedPNG)
         }
-        public func toJSON() -> String {
-            do {
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                encoder.keyEncodingStrategy = .convertToSnakeCase
-                let jsonData = try encoder.encode(self)
-                var jsonString = String(data: jsonData, encoding: .utf8)!
-                return jsonString
-            } catch {
-                return "{}"
-            }
+        public var json: String {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+            guard let jsonData = try? encoder.encode(self) else { return "{}" }
+            var jsonString = String(data: jsonData, encoding: .utf8)!
+            return jsonString
         }
     }
 
@@ -147,12 +154,12 @@ extension JupyterDisplay {
         do {
             let jsonData = (parentMessage.json).data(using: .utf8, allowLossyConversion: false)
             let jsonDict = try JSONSerialization.jsonObject(with: jsonData!) as? NSDictionary
-            let headerData = try JSONSerialization.data(withJSONObject: jsonDict!["header"], options: .prettyPrinted)
+            let headerData = try JSONSerialization.data(withJSONObject: jsonDict!["header"],
+                                                        options: .prettyPrinted)
             parentHeader = String(data: headerData, encoding: .utf8)!
         } catch {
             print("Error in JSON parsing!")
         }
-
     }
 
     private static func consumeDisplayMessages() -> [KernelCommunicator.JupyterDisplayMessage] {
@@ -173,6 +180,6 @@ extension JupyterDisplay {
 JupyterDisplay.enable()
 
 func display(base64EncodedPNG: String) {
-    let data = JupyterDisplay.MessageContent(base64EncodedPNG: base64EncodedPNG).toJSON()
+    let data = JupyterDisplay.MessageContent(base64EncodedPNG: base64EncodedPNG).json
     JupyterDisplay.messages.append(JupyterDisplay.Message(content: data))
 }
