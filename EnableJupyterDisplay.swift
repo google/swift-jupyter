@@ -38,7 +38,7 @@ enum JupyterDisplay {
             case messageType = "msg_type"
         }
 
-        public init(messageID: String = UUID().uuidString,
+        init(messageID: String = UUID().uuidString,
                     username: String = "kernel",
                     session: String,
                     messageType: String = "display_data",
@@ -50,7 +50,7 @@ enum JupyterDisplay {
             self.version = version
         }
 
-        public var json: String {
+        var json: String {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -130,7 +130,7 @@ enum JupyterDisplay {
         init(base64EncodedPNG: String) {
             data = PNGImageData(base64EncodedPNG: base64EncodedPNG)
         }
-        public var json: String {
+        var json: String {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             encoder.keyEncodingStrategy = .convertToSnakeCase
