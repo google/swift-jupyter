@@ -136,7 +136,7 @@ with the installation instructions from the previous section.
 
 # Usage Instructions
 
-## Rich output
+## Rich output with Python
 
 You can call Python libraries using [Swift's Python interop] to display rich
 output in your Swift notebooks. (Eventually, we'd like to support Swift
@@ -189,6 +189,47 @@ display.display(pd.DataFrame.from_records([["col 1": 3, "col 2": 5], ["col 1": 8
 ![Screenshot of running the above two snippets of code in Jupyter](./screenshots/display_pandas.png)
 
 [Swift's Python interop]: https://github.com/tensorflow/swift/blob/master/docs/PythonInteroperability.md
+
+## Inline plots
+
+You can display images using Swift too. 
+
+```swift
+%install '.package(url: "https://github.com/IBM-Swift/BlueCryptor.git", from: "1.0.28")' Cryptor
+%install '.package(url: "https://github.com/KarthikRIyer/swiftplot", from: "0.0.1")' SwiftPlot
+%include "EnableJupyterDisplay.swift"
+```
+
+Now you should be able to display images! (Currently only PNG format is supported. You also need to provide the image as a base64 String. Eventually we'd like to support other formats as well.)
+
+For example:
+
+```swift
+import Foundation
+import SwiftPlot
+import AGGRenderer
+￼
+func function(_ x: Float) -> Float {
+    return 1.0 / x
+}
+￼
+var aggRenderer = AGGRenderer()
+var lineGraph = LineGraph()
+lineGraph.addFunction(
+    function,
+    minX: -5.0,
+    maxX: 5.0,
+    numberOfSamples: 400,
+    label: "1/x",
+    color: .orange)
+lineGraph.plotTitle = "FUNCTION"
+lineGraph.drawGraph(renderer: aggRenderer)
+display(base64EncodedPNG: aggRenderer.base64Png())
+```
+
+![Screenshot of running the above snippet of code in Jupyter](./screenshots/display_swiftplot.png)
+
+To learn more about displaying plots using SwiftPlot take a look at the documentation [here](https://github.com/KarthikRIyer/swiftplot).
 
 ## %install directives
 
