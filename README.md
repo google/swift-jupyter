@@ -196,14 +196,13 @@ display.display(pd.DataFrame.from_records([["col 1": 3, "col 2": 5], ["col 1": 8
 
 You can display images using Swift too. 
 
-Prerequisites:
-
-* You need to install the BlueCryptor library using the `%install` directive. We use it for message signing.
 ```swift
 %install '.package(url: "https://github.com/IBM-Swift/BlueCryptor.git", from: "1.0.28")' Cryptor
+%install '.package(url: "https://github.com/KarthikRIyer/swiftplot", from: "0.0.1")' SwiftPlot
+%include "EnableJupyterDisplay.swift"
 ```
 
-After doing this, run `%include "EnableJupyterDisplay.swift"` in your Swift notebook. Now you should be able to display images! (Currently only PNG format is supported. You also need to provide the image as a base64 String. Eventually we'd like to support other formats as well.)
+Now you should be able to display images! (Currently only PNG format is supported. You also need to provide the image as a base64 String. Eventually we'd like to support other formats as well.)
 
 For example:
 
@@ -211,18 +210,20 @@ For example:
 import Foundation
 import SwiftPlot
 import AGGRenderer
-
-func function(_ x: Float)->Float {
-    return 1.0/x
+￼
+func function(_ x: Float) -> Float {
+    return 1.0 / x
 }
-
+￼
 var aggRenderer = AGGRenderer()
 var lineGraph = LineGraph()
-lineGraph.addFunction(function, minX: -5.0,
-                      maxX: 5.0,
-                      numberOfSamples: 400,
-                      label: "1/x",
-                      color: .orange)
+lineGraph.addFunction(
+    function,
+    minX: -5.0,
+    maxX: 5.0,
+    numberOfSamples: 400,
+    label: "1/x",
+    color: .orange)
 lineGraph.plotTitle = "FUNCTION"
 lineGraph.drawGraph(renderer: aggRenderer)
 display(base64EncodedPNG: aggRenderer.base64Png())
