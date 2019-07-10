@@ -63,6 +63,9 @@ RUN python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --s
 RUN echo "/usr/local/cuda-10.0/targets/x86_64-linux/lib/stubs" > /etc/ld.so.conf.d/cuda-10.0-stubs.conf && \
     ldconfig
 
+# Add Swift to the PATH
+ENV PATH="$PATH:/swift-tensorflow-toolchain/usr/bin/"
+
 # Run jupyter on startup
 EXPOSE 8888
 RUN mkdir /notebooks
