@@ -70,7 +70,8 @@ class CompleteCrash(CompleteException):
 
 
 class NotebookTestRunner:
-    def __init__(self, notebook, char_step=1, repeat_times=1,
+    # TODO(TF-743): Change default char_step back to 1, to reenable completion tests.
+    def __init__(self, notebook, char_step=0, repeat_times=1,
                  execute_timeout=30, complete_timeout=5, verbose=True):
         """
         noteboook - path to a notebook to run the test on
