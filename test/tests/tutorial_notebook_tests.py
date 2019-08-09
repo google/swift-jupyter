@@ -20,6 +20,7 @@ class TutorialNotebookTests(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp_dir)
 
+    @unittest.skip  # TODO(TF-746): Reenable.
     def test_iris(self):
         notebook = os.path.join(self.tmp_dir, 'docs', 'site', 'tutorials',
                                 'model_training_walkthrough.ipynb')
