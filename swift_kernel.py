@@ -202,7 +202,7 @@ class SwiftKernel(Kernel):
         # self.completion_enabled = hasattr(self.target, 'CompleteCode')
         
         # TODO(TF-743): Reenable completion by default.
-        self.completion_enabled = false
+        self.completion_enabled = False
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
