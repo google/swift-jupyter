@@ -29,6 +29,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxml2 \
         libblocksruntime-dev
 
+# Install Google Cloud SDK.
+# Needed for MiniGo.
+RUN curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz
+ENV CLOUDSDK_CORE_DISABLE_PROMPTS=1
+RUN mkdir -p /usr/local/gcloud \
+  && tar -C /usr/local/gcloud -xvf /tmp/google-cloud-sdk.tar.gz \
+  && /usr/local/gcloud/google-cloud-sdk/install.sh --quiet
+ENV PATH="$PATH:/usr/local/gcloud/google-cloud-sdk/bin"
+
 # Upgrade pips
 RUN pip2 install --upgrade pip
 RUN pip3 install --upgrade pip
