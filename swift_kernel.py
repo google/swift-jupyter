@@ -135,7 +135,7 @@ class StdoutHandler(threading.Thread):
 
     def _get_stdout(self):
         while True:
-            BUFFER_SIZE = 1000
+            BUFFER_SIZE = 100000
             stdout_buffer = self.kernel.process.GetSTDOUT(BUFFER_SIZE)
             if len(stdout_buffer) == 0:
                 break
