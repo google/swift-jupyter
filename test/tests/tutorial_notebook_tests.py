@@ -23,7 +23,8 @@ class TutorialNotebookTests(unittest.TestCase):
     def test_iris(self):
         notebook = os.path.join(self.tmp_dir, 'docs', 'site', 'tutorials',
                                 'model_training_walkthrough.ipynb')
-        runner = NotebookTestRunner(notebook, verbose=False)
+        runner = NotebookTestRunner(notebook, verbose=False,
+                                    assertion_failure_workaround=True)
         runner.run()
         self.assertEqual([], runner.unexpected_errors)
         all_stdout = '\n\n'.join(runner.stdout)
