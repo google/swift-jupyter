@@ -105,6 +105,8 @@ class NotebookTestRunner:
         self._execute_code(code, cell_index)
 
     def _execute_code(self, code, cell_index=-1):
+        print('executing cell %d with code %s' % (cell_index, code))
+
         self.kc.execute(code)
 
         # Consume all the iopub messages that the execution produced.
