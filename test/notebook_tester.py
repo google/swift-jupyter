@@ -72,8 +72,7 @@ class CompleteCrash(CompleteException):
 class NotebookTestRunner:
     # TODO(TF-743): Change default char_step back to 1, to reenable completion tests.
     def __init__(self, notebook, char_step=0, repeat_times=1,
-                 execute_timeout=60, complete_timeout=5, verbose=True,
-                 assertion_failure_workaround=False):
+                 execute_timeout=60, complete_timeout=5, verbose=True):
         """
         noteboook - path to a notebook to run the test on
         char_step - number of chars to step per completion request. 0 disables
@@ -89,7 +88,6 @@ class NotebookTestRunner:
         self.execute_timeout = execute_timeout
         self.complete_timeout = complete_timeout
         self.verbose = verbose
-        self.assertion_failure_workaround = assertion_failure_workaround
 
         notebook_dir = os.path.dirname(notebook)
         os.chdir(notebook_dir)
@@ -241,14 +239,6 @@ class NotebookTestRunner:
         while True:
             self._init_kernel()
             try:
-                if self.assertion_failure_workaround:
-                    # Executing a simple cell and sleeping a bit seems to
-                    # prevent the following intermittent assertion failure.
-                    #   /swift-base/llvm/lib/ExecutionEngine/RuntimeDyld/RuntimeDyldELF.cpp:304: void llvm::RuntimeDyldELF::resolveX86_64Relocation(const llvm::SectionEntry &, uint64_t, uint64_t, uint32_t, int64_t, uint64_t): Assertion `isInt<32>(RealOffset)' failed.
-                    for _ in range(2):
-                        self._execute_code('print("Hello World")')
-                        time.sleep(30)
-
                 for _ in range(self.repeat_times):
                     self._run_notebook_once(failed_completions)
                 break
