@@ -239,6 +239,12 @@ class NotebookTestRunner:
         while True:
             self._init_kernel()
             try:
+                # Executing a simple cell and sleeping a bit seems to prevent
+                # the following intermittent assertion failure.
+                #   /swift-base/llvm/lib/ExecutionEngine/RuntimeDyld/RuntimeDyldELF.cpp:304: void llvm::RuntimeDyldELF::resolveX86_64Relocation(const llvm::SectionEntry &, uint64_t, uint64_t, uint32_t, int64_t, uint64_t): Assertion `isInt<32>(RealOffset)' failed.
+                self._execute_code('print("Hello World")')
+                time.sleep(5)
+
                 for _ in range(self.repeat_times):
                     self._run_notebook_once(failed_completions)
                 break
