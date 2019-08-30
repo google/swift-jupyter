@@ -203,7 +203,6 @@ class SwiftKernelTestsBase:
             if msg['msg_type'] == 'status':
                 break
 
-    @unittest.skip  # TODO(TF-743): Reenable.
     def test_swift_completion(self):
         reply, output_msgs = self.execute_helper(code="""
             func aFunctionToComplete() {}
