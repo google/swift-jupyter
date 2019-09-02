@@ -38,6 +38,11 @@ RUN mkdir -p /usr/local/gcloud \
   && /usr/local/gcloud/google-cloud-sdk/install.sh --quiet
 ENV PATH="$PATH:/usr/local/gcloud/google-cloud-sdk/bin"
 
+# Download MiniGo data.
+RUN mkdir -p /notebooks/MiniGo
+WORKDIR /notebooks
+RUN gsutil cp 'gs://minigo-pub/v15-19x19/models/000939-heron.*' MiniGo/
+
 # Upgrade pips
 RUN pip2 install --upgrade pip
 RUN pip3 install --upgrade pip
@@ -77,6 +82,5 @@ ENV PATH="$PATH:/swift-tensorflow-toolchain/usr/bin/"
 
 # Run jupyter on startup
 EXPOSE 8888
-RUN mkdir /notebooks
 WORKDIR /notebooks
 CMD ["/swift-jupyter/docker/run_jupyter.sh", "--allow-root", "--no-browser", "--ip=0.0.0.0", "--port=8888", "--NotebookApp.custom_display_url=http://127.0.0.1:8888"]
