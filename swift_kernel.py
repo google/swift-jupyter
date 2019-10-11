@@ -141,14 +141,29 @@ class StdoutHandler(threading.Thread):
                 break
             yield stdout_buffer
 
-    def _get_and_send_stdout(self):
-        stdout = ''.join([buf for buf in self._get_stdout()])
-        if len(stdout) > 0:
-            self.had_stdout = True
+    # Sends stdout to the jupyter client, replacing the ANSI sequence for
+    # clearing the whole display with a 'clear_output' message to the jupyter
+    # client.
+    def _send_stdout(self, stdout):
+        clear_sequence = '\033[3J'
+        clear_sequence_index = stdout.find(clear_sequence)
+        if clear_sequence_index != -1:
+            self._send_stdout(stdout[:clear_sequence_index])
+            self.kernel.send_response(
+                self.kernel.iopub_socket, 'clear_output', {'wait': False})
+            self._send_stdout(
+                stdout[clear_sequence_index + len(clear_sequence):])
+        else:
             self.kernel.send_response(self.kernel.iopub_socket, 'stream', {
                 'name': 'stdout',
                 'text': stdout
             })
+
+    def _get_and_send_stdout(self):
+        stdout = ''.join([buf for buf in self._get_stdout()])
+        if len(stdout) > 0:
+            self.had_stdout = True
+            self._send_stdout(stdout)
 
     def run(self):
         try:

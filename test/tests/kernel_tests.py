@@ -236,6 +236,40 @@ class SwiftKernelTestsBase:
                          ['aFunctionToComplete()'])
         self.flush_channels()
 
+    def test_swift_clear_output(self):
+        reply, output_msgs = self.execute_helper(code=r"""
+            print("before the clear")
+            print("\u{001B}[3J")
+            print("after the clear")
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        self.assertEqual(
+            dict((k, output_msgs[0][k]) for k in ['msg_type', 'content']),
+            {
+                'msg_type': 'stream',
+                'content': {
+                    'name': 'stdout',
+                    'text': 'before the clear\r\n',
+                },
+            })
+        self.assertEqual(
+            dict((k, output_msgs[1][k]) for k in ['msg_type', 'content']),
+            {
+                'msg_type': 'clear_output',
+                'content': {
+                    'wait': False
+                }
+            })
+        self.assertEqual(
+            dict((k, output_msgs[2][k]) for k in ['msg_type', 'content']),
+            {
+                'msg_type': 'stream',
+                'content': {
+                    'name': 'stdout',
+                    'text': '\r\nafter the clear\r\n',
+                },
+            })
+
 
 class SwiftKernelTestsPython27(SwiftKernelTestsBase,
                                jupyter_kernel_test.KernelTests):
