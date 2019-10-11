@@ -145,7 +145,7 @@ class StdoutHandler(threading.Thread):
     # clearing the whole display with a 'clear_output' message to the jupyter
     # client.
     def _send_stdout(self, stdout):
-        clear_sequence = '\033[3J'
+        clear_sequence = '\033[2J'
         clear_sequence_index = stdout.find(clear_sequence)
         if clear_sequence_index != -1:
             self._send_stdout(stdout[:clear_sequence_index])

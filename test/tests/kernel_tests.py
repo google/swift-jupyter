@@ -239,7 +239,7 @@ class SwiftKernelTestsBase:
     def test_swift_clear_output(self):
         reply, output_msgs = self.execute_helper(code=r"""
             print("before the clear")
-            print("\u{001B}[3J")
+            print("\u{001B}[2J")
             print("after the clear")
         """)
         self.assertEqual(reply['content']['status'], 'ok')
