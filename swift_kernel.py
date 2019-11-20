@@ -686,8 +686,13 @@ class SwiftKernel(Kernel):
 
         # == Copy .swiftmodule and modulemap files to SWIFT_IMPORT_SEARCH_PATH ==
 
-        build_db_file = os.path.join(package_base_path, '.build', 'build.db')
-        if not os.path.exists(build_db_file):
+        # Search for build.db.
+        build_db_candidates = [
+            os.path.join(bin_dir, '..', 'build.db'),
+            os.path.join(package_base_path, '.build', 'build.db'),
+        ]
+        build_db_file = next(filter(os.path.exists, build_db_candidates), None)
+        if build_db_file is None:
             raise PackageInstallException('build.db is missing')
 
         # Execute swift-package show-dependencies to get all dependencies' paths
