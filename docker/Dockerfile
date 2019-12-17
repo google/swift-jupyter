@@ -1,33 +1,7 @@
-# TODO: We should have a job that creates a S4TF base image so that
-#we don't have to duplicate the installation everywhere.
-FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04
+FROM gcr.io/swift-tensorflow/base-deps-cuda10.1-cudnn7-ubuntu18.04 
 
 # Allows the caller to specify the toolchain to use.
-ARG swift_tf_url=https://storage.googleapis.com/swift-tensorflow-artifacts/nightlies/latest/swift-tensorflow-DEVELOPMENT-cuda10.0-cudnn7-ubuntu18.04.tar.gz
-
-# Install Swift deps.
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        ca-certificates \
-        curl \
-        git \
-        python \
-        python-dev \
-        python-pip \
-        python-setuptools \
-        python-tk \
-        python3 \
-        python3-pip \
-        python3-setuptools \
-        clang \
-        libcurl4-openssl-dev \
-        libicu-dev \
-        libpython-dev \
-        libpython3-dev \
-        libncurses5-dev \
-        libxml2 \
-        libblocksruntime-dev
+ARG swift_tf_url=https://storage.googleapis.com/swift-tensorflow-artifacts/nightlies/latest/swift-tensorflow-DEVELOPMENT-cuda10.1-cudnn7-ubuntu18.04.tar.gz
 
 # Upgrade pips
 RUN pip2 install --upgrade pip
