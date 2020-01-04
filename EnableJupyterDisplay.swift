@@ -177,9 +177,21 @@ extension JupyterDisplay {
     }
 }
 
-JupyterDisplay.enable()
-
 func display(base64EncodedPNG: String) {
     let data = JupyterDisplay.MessageContent(base64EncodedPNG: base64EncodedPNG).json
     JupyterDisplay.messages.append(JupyterDisplay.Message(content: data))
 }
+
+#if canImport(SwiftPlot)
+import SwiftPlot
+import AGGRenderer
+var __agg_renderer = AGGRenderer()
+extension Plot {
+  func display(size: Size = Size(width: 1000, height: 660)) {
+    drawGraph(size: size, renderer: __agg_renderer)
+    display(base64EncodedPNG: __agg_renderer.base64Png())
+  }
+}
+#endif
+
+JupyterDisplay.enable()
