@@ -214,9 +214,7 @@ class SwiftKernel(Kernel):
         # SBTarget.CompleteCode API.
         # The user can disable/enable using "%disableCompletion" and
         # "%enableCompletion".
-        # TODO: Reenable completions when they become less crashy.
-        #self.completion_enabled = hasattr(self.target, 'CompleteCode')
-        self.completion_enabled = False
+        self.completion_enabled = hasattr(self.target, 'CompleteCode')
 
     def _init_repl_process(self):
         self.debugger = lldb.SBDebugger.Create()
