@@ -123,13 +123,10 @@ enum JupyterDisplay {
         }
     }
 
-    struct MessageContent: Encodable {
+    struct MessageContent<Data>: Encodable where Data: Encodable {
         let metadata = "{}"
         let transient = "{}"
-        let data: PNGImageData
-        init(base64EncodedPNG: String) {
-            data = PNGImageData(base64EncodedPNG: base64EncodedPNG)
-        }
+        let data: Data
         var json: String {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -178,7 +175,8 @@ extension JupyterDisplay {
 }
 
 func display(base64EncodedPNG: String) {
-    let data = JupyterDisplay.MessageContent(base64EncodedPNG: base64EncodedPNG).json
+    let pngData = JupyterDisplay.PNGImageData(base64EncodedPNG: base64EncodedPNG)
+    let data = JupyterDisplay.MessageContent(data: pngData).json
     JupyterDisplay.messages.append(JupyterDisplay.Message(content: data))
 }
 
