@@ -14,7 +14,7 @@ class TutorialNotebookTests(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp_dir = tempfile.mkdtemp()
         git_url = 'https://github.com/tensorflow/swift.git'
-        os.system('git clone %s %s -b nightly-notebooks' % (git_url, cls.tmp_dir))
+        os.system('git clone %s %s -b master' % (git_url, cls.tmp_dir))
 
     @classmethod
     def tearDownClass(cls):
