@@ -38,9 +38,14 @@ def get_kernel_code_name(kernel_name):
     return kernel_code_name
 
 
-def linux_lldb_python_lib_subdir():
-    return 'lib/python%d.%d/site-packages' % (sys.version_info[0],
-                                              sys.version_info[1])
+def linux_pythonpath(root):
+    old_dir = '%s/lib/python%d.%d/site-packages' % (root,
+                                                    sys.version_info[0],
+                                                    sys.version_info[1])
+    if os.path.isdir(old_dir):
+        return old_dir
+
+    return '%s/lib/python%s/dist-packages' % (root, sys.version_info[0])
 
 
 def make_kernel_env(args):
@@ -51,8 +56,7 @@ def make_kernel_env(args):
     if args.swift_toolchain is not None:
         # Use a prebuilt Swift toolchain.
         if platform.system() == 'Linux':
-            kernel_env['PYTHONPATH'] = '%s/usr/%s' % (
-                args.swift_toolchain, linux_lldb_python_lib_subdir())
+            kernel_env['PYTHONPATH'] = linux_pythonpath(args.swift_toolchain + '/usr')
             kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/linux' % args.swift_toolchain
             kernel_env['REPL_SWIFT_PATH'] = '%s/usr/bin/repl_swift' % args.swift_toolchain
             kernel_env['SWIFT_BUILD_PATH'] = '%s/usr/bin/swift-build' % args.swift_toolchain
@@ -74,8 +78,7 @@ def make_kernel_env(args):
         swift_build_dir = '%s/swift-linux-x86_64' % args.swift_build
         lldb_build_dir = '%s/lldb-linux-x86_64' % args.swift_build
 
-        kernel_env['PYTHONPATH'] = '%s/%s' % (lldb_build_dir,
-                                              linux_lldb_python_lib_subdir())
+        kernel_env['PYTHONPATH'] = linux_pythonpath(lldb_build_dir)
         kernel_env['LD_LIBRARY_PATH'] = '%s/lib/swift/linux' % swift_build_dir
         kernel_env['REPL_SWIFT_PATH'] = '%s/bin/repl_swift' % lldb_build_dir
 
