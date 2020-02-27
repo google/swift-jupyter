@@ -662,10 +662,17 @@ class SwiftKernel(Kernel):
 
         # == Ask SwiftPM to build the package ==
 
+        # TODO(TF-1179): Remove this workaround after fixing SwiftPM.
+        swiftpm_env = os.environ
+        libuuid_path = '/lib/x86_64-linux-gnu/libuuid.so.1'
+        if os.path.isfile(libuuid_path):
+            swiftpm_env['LD_PRELOAD'] = libuuid_path
+
         build_p = subprocess.Popen([swift_build_path] + swiftpm_flags,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT,
-                                   cwd=package_base_path)
+                                   cwd=package_base_path,
+                                   env=swiftpm_env)
         for build_output_line in iter(build_p.stdout.readline, b''):
             self.send_response(self.iopub_socket, 'stream', {
                 'name': 'stdout',
@@ -680,7 +687,8 @@ class SwiftKernel(Kernel):
         show_bin_path_result = subprocess.run(
                 [swift_build_path, '--show-bin-path'] + swiftpm_flags,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                cwd=package_base_path)
+                cwd=package_base_path,
+                env=swiftpm_env)
         bin_dir = show_bin_path_result.stdout.decode('utf8').strip()
         lib_filename = os.path.join(bin_dir, 'libjupyterInstalledPackages.so')
 
@@ -699,7 +707,8 @@ class SwiftKernel(Kernel):
         dependencies_result = subprocess.run(
             [swift_package_path, 'show-dependencies', '--format', 'json'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            cwd=package_base_path)
+            cwd=package_base_path,
+            swiftpm_env=env)
         dependencies_json = dependencies_result.stdout.decode('utf8')
         dependencies_obj = json.loads(dependencies_json)
 
