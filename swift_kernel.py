@@ -708,7 +708,7 @@ class SwiftKernel(Kernel):
             [swift_package_path, 'show-dependencies', '--format', 'json'],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             cwd=package_base_path,
-            swiftpm_env=env)
+            env=swiftpm_env)
         dependencies_json = dependencies_result.stdout.decode('utf8')
         dependencies_obj = json.loads(dependencies_json)
 
