@@ -66,7 +66,6 @@ def make_kernel_env(args):
             kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/macosx' % args.swift_toolchain
             kernel_env['REPL_SWIFT_PATH'] = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/repl_swift' % args.swift_toolchain
         elif platform.system() == 'Windows':
-            # kernel_env['PYTHONPATH'] = os.path.join(os.path.dirname(args.swift_toolchain),'Platforms','Windows.platform','Developer','SDKS','Windows.sdk','usr','lib','swift','windows')
             kernel_env['PYTHONPATH'] = os.environ['LLVM_PYTHON']
             kernel_env['LD_LIBRARY_PATH'] = os.path.join(os.path.dirname(os.path.dirname(args.swift_toolchain)),
                                                         'Platforms','Windows.platform','Developer','Library','XCTest-development',
@@ -172,30 +171,17 @@ def main():
     validate_kernel_env(kernel_env)
 
     script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
-    if platform.system() != 'Windows':
-        kernel_json = {
-            'argv': [
-                sys.executable,
-                '%s/parent_kernel.py' % script_dir,
-                '-f',
-                '{connection_file}',
-            ],
-            'display_name': args.kernel_name,
-            'language': 'swift',
-            'env': kernel_env,
-        }
-    else: # Slash orientation, os.path.join should work on other platforms though
-        kernel_json = {
-            'argv': [
-                sys.executable,
-                os.path.join(script_dir,'parent_kernel.py'),
-                '-f',
-                '{connection_file}',
-            ],
-            'display_name': args.kernel_name,
-            'language': 'swift',
-            'env': kernel_env,
-        }
+    kernel_json = {
+        'argv': [
+            sys.executable,
+            os.path.join(script_dir,'parent_kernel.py'),
+            '-f',
+            '{connection_file}',
+        ],
+        'display_name': args.kernel_name,
+        'language': 'swift',
+        'env': kernel_env,
+    }
     
     print('kernel.json:\n%s\n' % json.dumps(kernel_json, indent=2))
 
