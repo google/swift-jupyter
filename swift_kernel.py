@@ -1064,7 +1064,8 @@ if __name__ == '__main__':
     # Jupyter sends us SIGINT when the user requests execution interruption.
     # Here, we block all threads from receiving the SIGINT, so that we can
     # handle it in a specific handler thread.
-    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGINT])
+    if hasattr(signal, 'pthread_sigmask'): # Not supported in Windows
+        signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGINT])
 
     from ipykernel.kernelapp import IPKernelApp
     # We pass the kernel name as a command-line arg, since Jupyter gives those
