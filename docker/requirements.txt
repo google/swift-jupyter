@@ -1,7 +1,7 @@
 # These requirements are pinned to versions that Colab uses, so that our tests
 # are more likely to catch problems that show up in the Colab environment.
 backcall==0.1.0
-bleach==3.1.0
+bleach==3.1.2
 decorator==4.3.2
 defusedxml==0.5.0
 entrypoints==0.3
