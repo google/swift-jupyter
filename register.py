@@ -109,9 +109,9 @@ def make_kernel_env(args):
     if args.swift_python_use_conda:
         if platform.system() == 'Darwin':
             libpython = glob(sys.prefix+'/lib/libpython*.dylib')[0]
-        if platform.system() == 'Linux':
+        elif platform.system() == 'Linux':
             libpython = glob(sys.prefix+'/lib/libpython*.so')[0]
-        if platform.system() == 'Windows':
+        elif platform.system() == 'Windows':
             libpython = glob(sys.prefix+'/python*.dll')[0]
         else:
             raise Exception('Unable to find libpython for system %s' % platform.system())
