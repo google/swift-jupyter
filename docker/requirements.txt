@@ -2,3 +2,4 @@ jupyter
 pandas
 matplotlib
 numpy
+jupyter-kernel-test
