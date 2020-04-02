@@ -66,11 +66,11 @@ def make_kernel_env(args):
             kernel_env['LD_LIBRARY_PATH'] = '%s/usr/lib/swift/macosx' % args.swift_toolchain
             kernel_env['REPL_SWIFT_PATH'] = '%s/System/Library/PrivateFrameworks/LLDB.framework/Resources/repl_swift' % args.swift_toolchain
         elif platform.system() == 'Windows':
-            kernel_env['PYTHONPATH'] = os.environ['LLVM_PYTHON']
+            kernel_env['PYTHONPATH'] = os.path.join('%s','usr','lib','site-packages') % args.swift_toolchain
             kernel_env['LD_LIBRARY_PATH'] = os.path.join(os.path.dirname(os.path.dirname(args.swift_toolchain)),
                                                         'Platforms','Windows.platform','Developer','Library','XCTest-development',
                                                         'usr','lib','swift')
-            kernel_env['REPL_SWIFT_PATH'] = '%s/usr/bin/repl_swift.exe' % args.swift_toolchain
+            kernel_env['REPL_SWIFT_PATH'] = os.path.join('%s','usr','bin','repl_swift.exe') % args.swift_toolchain
             
         else:
             raise Exception('Unknown system %s' % platform.system())
