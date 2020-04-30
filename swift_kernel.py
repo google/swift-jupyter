@@ -786,6 +786,7 @@ class SwiftKernel(Kernel):
 
         dynamic_load_code = textwrap.dedent("""\
             import func Glibc.dlopen
+            import var Glibc.RTLD_NOW
             dlopen(%s, RTLD_NOW)
         """ % json.dumps(lib_filename))
         dynamic_load_result = self._execute(dynamic_load_code)
