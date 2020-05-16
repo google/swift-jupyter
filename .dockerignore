@@ -1,3 +1,8 @@
-.git
-venv
+.dockerignore
+
+.idea/
+.git**
+screenshots/
+venv/
+
 **/*.pyc
