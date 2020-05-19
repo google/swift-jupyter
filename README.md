@@ -119,6 +119,12 @@ The functions of these parameters are:
 
 - `-v <host path>:/notebooks` bind mounts a host directory as a volume where notebooks created in the container will be stored.  If this command is omitted, any notebooks created using the container will not be persisted when the container is stopped.
 
+To improve Docker image building, use the new [Docker Buildkit system](https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds) by either setting the `DOCKER_BUILDKIT` environment variable or configuring the Docker `daemon.json`. The simplest way is by prepending `DOCKER_BUILDKIT=1` to your `docker build` command:
+
+```bash
+DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile -t swift-jupyter .
+```
+
 ## (optional) Building toolchain with LLDB Python3 support
 
 Follow the
