@@ -4,19 +4,17 @@ FROM gcr.io/swift-tensorflow/base-deps-cuda10.2-cudnn7-ubuntu18.04
 # Allow the caller to specify the toolchain to use
 ARG swift_tf_url=https://storage.googleapis.com/swift-tensorflow-artifacts/nightlies/latest/swift-tensorflow-DEVELOPMENT-cuda10.2-cudnn7-ubuntu18.04.tar.gz
 
-# Upgrade pips
-RUN pip2 install --upgrade pip
-RUN pip3 install --upgrade pip
-
-# Install swift-jupyter's dependencies in python3 because we run the kernel in python3.
+# Install some python libraries that are useful to call from swift
+# Since swift can interoperate with python2 and python3, install them in both
+# Install swift-jupyter's dependencies in python3 because we run the kernel in python3
 WORKDIR /swift-jupyter
 COPY docker/requirements*.txt ./
-RUN pip3 install -r requirements.txt
-
-# Install some python libraries that are useful to call from swift. Since
-# swift can interoperate with python2 and python3, install them in both.
-RUN pip2 install -r requirements_py_graphics.txt
-RUN pip3 install -r requirements_py_graphics.txt
+RUN python2 -m pip install --upgrade pip \
+    && python2 -m pip install --no-cache-dir -r requirements.txt \
+    && python2 -m pip install --no-cache-dir -r requirements_py_graphics.txt
+RUN python3 -m pip install --upgrade pip \
+    && python3 -m pip install --no-cache-dir -r requirements.txt \
+    && python3 -m pip install --no-cache-dir -r requirements_py_graphics.txt
 
 # Copy the kernel into the container
 WORKDIR /swift-jupyter
