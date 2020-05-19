@@ -16,10 +16,6 @@ RUN python3 -m pip install --upgrade pip \
     && python3 -m pip install --no-cache-dir -r requirements.txt \
     && python3 -m pip install --no-cache-dir -r requirements_py_graphics.txt
 
-# Copy the kernel into the container
-WORKDIR /swift-jupyter
-COPY . .
-
 # Download and extract S4TF
 WORKDIR /swift-tensorflow-toolchain
 ADD $swift_tf_url swift.tar.gz
@@ -27,8 +23,11 @@ RUN mkdir usr \
     && tar -xzf swift.tar.gz --directory=usr --strip-components=1 \
     && rm swift.tar.gz
 
-# Register the kernel with jupyter
+# Copy the kernel into the container
 WORKDIR /swift-jupyter
+COPY . .
+
+# Register the kernel with jupyter
 RUN python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-version 2.7 --kernel-name "Swift (with Python 2.7)" && \
     python3 register.py --user --swift-toolchain /swift-tensorflow-toolchain --swift-python-library /usr/lib/x86_64-linux-gnu/libpython3.6m.so --kernel-name "Swift"
 
