@@ -94,7 +94,7 @@ jupyter notebook
 
 You should be able to create Swift notebooks. Installation is done!
 
-## Option 3: Using the Docker Container
+## Option 3: Using Docker to run Jupyter Notebook in a container
 
 This repository also includes a dockerfile which can be used to run a Jupyter Notebook instance which includes this Swift kernel. To build the container, the following command may be used:
 
@@ -118,6 +118,40 @@ The functions of these parameters are:
 - `--cap-add SYS_PTRACE` adjusts the privileges with which this container is run, which is required for the Swift REPL.
 
 - `-v <host path>:/notebooks` bind mounts a host directory as a volume where notebooks created in the container will be stored.  If this command is omitted, any notebooks created using the container will not be persisted when the container is stopped.
+
+To improve Docker image building, use the new [Docker Buildkit system](https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds) by either setting the `DOCKER_BUILDKIT` environment variable or configuring the Docker `daemon.json`. The simplest way is by prepending `DOCKER_BUILDKIT=1` to your `docker build` command:
+
+```bash
+DOCKER_BUILDKIT=1 docker build -f docker/Dockerfile -t swift-jupyter .
+```
+
+## Option 4: Using Docker to run a Swift kernel connected to your local Jupyter Notebook
+
+As of Jupyter Notebook 6.0, you can use `--gateway-url=` to specify a separate [Jupyter Kernel Gateway](https://github.com/jupyter/kernel_gateway). (Or use the [nb2kg](https://github.com/jupyter/nb2kg) server extension for pre-6.0 versions of Notebook.) This allows running the Swift for Tensorflow Jupyter kernel in a Docker container while running Jupyter Notebook somewhere else, such as your local machine.
+
+First build the basic Swift kernel Docker image (as above), then build the kernel gateway image based on that:
+
+```bash
+# from inside the directory of this repository
+docker build -f docker/Dockerfile -t swift-jupyter .
+docker build -f kernel_gateway/Dockerfile -t swift-kg .
+```
+
+Using the new [Docker Buildkit system](https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds) is recommended, as described in [the section above](#option-3-using-docker-to-run-jupyter-notebook-with-swift-for-tensorflow).
+
+Then run the kernel gateway:
+
+```bash
+docker run -p 9999:9999 --cap-add SYS_PTRACE swift-kg
+```
+
+The functions of these parameters are the same as in the section above.
+
+With the gateway running, start Jupyter Notebook in your notebook directory and pass the URL of your kernel gateway:
+
+```bash
+jupyter notebook --gateway-url 127.0.0.1:9999
+```
 
 ## (optional) Building toolchain with LLDB Python3 support
 
