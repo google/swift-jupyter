@@ -844,13 +844,13 @@ class SwiftKernel(Kernel):
         return [self._read_byte_array(part) for part in sbvalue]
 
     def _read_byte_array(self, sbvalue):
-        get_position_error = lldb.SBError()
-        position = sbvalue \
-                .GetChildMemberWithName('_position') \
+        get_address_error = lldb.SBError()
+        address = sbvalue \
+                .GetChildMemberWithName('address') \
                 .GetData() \
-                .GetAddress(get_position_error, 0)
-        if get_position_error.Fail():
-            raise Exception('getting position: %s' % str(get_position_error))
+                .GetAddress(get_address_error, 0)
+        if get_address_error.Fail():
+            raise Exception('getting address: %s' % str(get_address_error))
 
         get_count_error = lldb.SBError()
         count_data = sbvalue \
@@ -872,7 +872,7 @@ class SwiftKernel(Kernel):
             return bytes()
 
         get_data_error = lldb.SBError()
-        data = self.process.ReadMemory(position, count, get_data_error)
+        data = self.process.ReadMemory(address, count, get_data_error)
         if get_data_error.Fail():
             raise Exception('getting data: %s' % str(get_data_error))
 
