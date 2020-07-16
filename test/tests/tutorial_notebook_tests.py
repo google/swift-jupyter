@@ -6,6 +6,8 @@ import os
 import shutil
 import tempfile
 
+from flaky import flaky
+
 from notebook_tester import NotebookTestRunner
 
 
@@ -20,6 +22,7 @@ class TutorialNotebookTests(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp_dir)
 
+    @flaky(max_runs=5, min_passes=1)
     def test_iris(self):
         notebook = os.path.join(self.tmp_dir, 'docs', 'site', 'tutorials',
                                 'model_training_walkthrough.ipynb')
