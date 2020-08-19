@@ -30,6 +30,8 @@ Create a virtualenv, install the requirements in it, and register the kernel in
 it:
 
 ```bash
+git clone https://github.com/google/swift-jupyter.git
+cd swift-jupyter
 python3 -m venv venv
 . venv/bin/activate
 pip install -r requirements.txt
