@@ -23,6 +23,7 @@ class TutorialNotebookTests(unittest.TestCase):
         shutil.rmtree(cls.tmp_dir)
 
     @flaky(max_runs=5, min_passes=1)
+    @unittest.skip  # TODO(TF-747): Reenable.
     def test_iris(self):
         notebook = os.path.join(self.tmp_dir, 'docs', 'site', 'tutorials',
                                 'model_training_walkthrough.ipynb')
