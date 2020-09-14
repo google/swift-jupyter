@@ -7,14 +7,9 @@ import time
 
 from jupyter_client.manager import start_new_kernel
 
-# This superclass defines tests but does not run them against kernels, so that
-# we can subclass this to run the same tests against different kernels.
-#
-# In particular, the subclasses run against kernels that interop with differnt
-# versions of Python, so that we test that graphics work with different versions
-# of Python.
-class SwiftKernelTestsBase:
+class SwiftKernelTests:
     language_name = 'swift'
+    kernel_name = 'swift'
 
     code_hello_world = 'print("hello, world!")'
 
@@ -269,16 +264,6 @@ class SwiftKernelTestsBase:
                     'text': '\r\nafter the clear\r\n',
                 },
             })
-
-
-class SwiftKernelTestsPython27(SwiftKernelTestsBase,
-                               jupyter_kernel_test.KernelTests):
-    kernel_name = 'swift-with-python-2.7'
-
-
-class SwiftKernelTests(SwiftKernelTestsBase,
-                       jupyter_kernel_test.KernelTests):
-    kernel_name = 'swift'
 
 
 # Class for tests that need their own kernel. (`SwiftKernelTestsBase` uses one
