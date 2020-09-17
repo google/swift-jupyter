@@ -14,7 +14,7 @@ class SwiftKernelTests(jupyter_kernel_test.KernelTests):
     code_hello_world = 'print("hello, world!")'
 
     code_execute_result = [
-        {'code': 'let x = 2; x', 'result': '2\n'}
+        {'code': 'let x = 2; x', 'result': 'Use `print()` to show values.\n'},
     ]
 
     code_generate_error = 'varThatIsntDefined'
@@ -264,6 +264,16 @@ class SwiftKernelTests(jupyter_kernel_test.KernelTests):
                     'text': '\r\nafter the clear\r\n',
                 },
             })
+
+    def test_show_tensor(self):
+        reply, output_msgs = self.execute_helper(code="""
+           import TensorFlow
+           Tensor([1, 2, 3])
+        """)
+        self.assertEqual(reply['content']['status'], 'ok')
+        self.assertIn(
+                "Use `print()` to show values",
+                output_msgs[0]['content']['data']['text/plain'])
 
 
 # Class for tests that need their own kernel. (`SwiftKernelTestsBase` uses one
