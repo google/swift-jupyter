@@ -65,6 +65,13 @@ class SuccessWithValue(ExecutionResultSuccess):
     def __init__(self, result):
         self.result = result # SBValue
 
+    """A description of the value, e.g.
+         (Int) $R0 = 64"""
+    def value_description(self):
+        stream = lldb.SBStream()
+        self.result.GetDescription(stream)
+        return stream.GetData()
+
     def __repr__(self):
         return 'SuccessWithValue(result=%s, description=%s)' % (
             repr(self.result), repr(self.result.description))
@@ -294,7 +301,7 @@ class SwiftKernel(Kernel):
         if not isinstance(result, SuccessWithValue):
             raise Exception('Expected value from Int.bitWidth, but got: %s' %
                             result)
-        self._int_bitwidth = int(result.result.description)
+        self._int_bitwidth = int(result.result.GetData().GetSignedInt32(lldb.SBError(), 0))
 
     def _init_sigint_handler(self):
         self.sigint_handler = SIGINTHandler(self)
@@ -794,7 +801,7 @@ class SwiftKernel(Kernel):
             raise PackageInstallException(
                     'Install Error: dlopen error: %s' % \
                             str(dynamic_load_result))
-        if dynamic_load_result.result.description.strip() == 'nil':
+        if dynamic_load_result.value_description().endswith('nil'):
             raise PackageInstallException('Install Error: dlopen error. Run '
                                         '`String(cString: dlerror())` to see '
                                         'the error message.')
@@ -976,10 +983,11 @@ class SwiftKernel(Kernel):
 
         # Send values/errors and status to the client.
         if isinstance(result, SuccessWithValue):
+            # TODO(#112): Make this show expression values again.
             self.send_response(self.iopub_socket, 'execute_result', {
                 'execution_count': self.execution_count,
                 'data': {
-                    'text/plain': result.result.description
+                    'text/plain': 'Use `print()` to show values.\n'
                 },
                 'metadata': {}
             })
