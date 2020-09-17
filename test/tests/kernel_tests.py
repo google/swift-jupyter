@@ -7,7 +7,7 @@ import time
 
 from jupyter_client.manager import start_new_kernel
 
-class SwiftKernelTests:
+class SwiftKernelTests(jupyter_kernel_test.KernelTests):
     language_name = 'swift'
     kernel_name = 'swift'
 
