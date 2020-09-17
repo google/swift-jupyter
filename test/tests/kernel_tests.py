@@ -271,9 +271,10 @@ class SwiftKernelTests(jupyter_kernel_test.KernelTests):
            Tensor([1, 2, 3])
         """)
         self.assertEqual(reply['content']['status'], 'ok')
-        self.assertIn(
-                "Use `print()` to show values",
-                output_msgs[0]['content']['data']['text/plain'])
+        if 'data' in output_msgs[0]['content']:
+            self.assertIn(
+                    "Use `print()` to show values",
+                    output_msgs[0]['content']['data']['text/plain'])
 
 
 # Class for tests that need their own kernel. (`SwiftKernelTestsBase` uses one
