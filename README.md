@@ -110,14 +110,14 @@ The resulting container comes with the latest Swift for TensorFlow toolchain ins
 This container can now be run with the following command:
 
 ```bash
-docker run -p 8888:8888 --cap-add SYS_PTRACE -v /my/host/notebooks:/notebooks swift-jupyter
+docker run -p 8888:8888 --privileged -v /my/host/notebooks:/notebooks swift-jupyter
 ```
 
 The functions of these parameters are:
 
 - `-p 8888:8888` exposes the port on which Jupyter is running to the host.
 
-- `--cap-add SYS_PTRACE` adjusts the privileges with which this container is run, which is required for the Swift REPL.
+- `--privileged` adjusts the privileges with which this container is run, which is required for the Swift REPL. (We would like to reduce the required privileges: https://github.com/google/swift-jupyter/issues/116).
 
 - `-v <host path>:/notebooks` bind mounts a host directory as a volume where notebooks created in the container will be stored.  If this command is omitted, any notebooks created using the container will not be persisted when the container is stopped.
 
@@ -144,7 +144,7 @@ Using the new [Docker Buildkit system](https://docs.docker.com/develop/develop-i
 Then run the kernel gateway:
 
 ```bash
-docker run -p 9999:9999 --cap-add SYS_PTRACE swift-kg
+docker run -p 9999:9999 --privileged swift-kg
 ```
 
 The functions of these parameters are the same as in the section above.
@@ -379,5 +379,5 @@ python test/notebook_tester.py --help
 After building the docker image according to the instructions above,
 
 ```
-docker run --cap-add SYS_PTRACE swift-jupyter python3 /swift-jupyter/test/all_test_docker.py
+docker run --privileged swift-jupyter python3 /swift-jupyter/test/all_test_docker.py
 ```
