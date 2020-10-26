@@ -921,8 +921,6 @@ class SwiftKernel(Kernel):
 
     def _make_error_message(self, traceback):
         return {
-            'status': 'error',
-            'execution_count': self.execution_count,
             'ename': '',
             'evalue': '',
             'traceback': traceback
