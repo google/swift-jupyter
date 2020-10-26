@@ -257,6 +257,13 @@ class SwiftKernel(Kernel):
                 continue
             repl_env.append('%s=%s' % (key, os.environ[key]))
 
+        # Turn off "disable ASLR" because it uses the "personality" syscall in
+        # a way that is forbidden by the default Docker security policy.
+        launch_info = self.target.GetLaunchInfo()
+        launch_flags = launch_info.GetLaunchFlags()
+        launch_info.SetLaunchFlags(launch_flags & ~lldb.eLaunchFlagDisableASLR)
+        self.target.SetLaunchInfo(launch_info)
+
         self.process = self.target.LaunchSimple(None,
                                                 repl_env,
                                                 os.getcwd())
