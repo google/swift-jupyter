@@ -32,6 +32,7 @@ import time
 import threading
 import sqlite3
 import json
+import random
 
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
@@ -229,8 +230,9 @@ class SwiftKernel(Kernel):
             raise Exception('Could not start debugger')
         self.debugger.SetAsync(False)
 
-        if hasattr(self, 'swift_module_search_path'):
-            self.debugger.HandleCommand("settings append target.swift-module-search-paths " + self.swift_module_search_path)
+        if hasattr(self, 'swift_module_search_paths'):
+            for swift_module_search_path in self.swift_module_search_paths:
+                self.debugger.HandleCommand("settings append target.swift-module-search-paths " + swift_module_search_path)
 
 
         # LLDB crashes while trying to load some Python stuff on Mac. Maybe
@@ -420,6 +422,7 @@ class SwiftKernel(Kernel):
         all_packages = []
         all_swiftpm_flags = []
         extra_include_commands = []
+        all_bazel_deps = []
         user_install_location = None
         for index, line in enumerate(code.split('\n')):
             line = self._process_system_command_line(line)
@@ -428,17 +431,21 @@ class SwiftKernel(Kernel):
                     line)
             all_swiftpm_flags += swiftpm_flags
             line, packages = self._process_install_line(index, line)
+            line, bazel_deps = self._process_bazel_line(index, line)
             line, extra_include_command = \
                 self._process_extra_include_command_line(line)
             if extra_include_command:
                 extra_include_commands.append(extra_include_command)
             processed_lines.append(line)
             all_packages += packages
+            all_bazel_deps += bazel_deps
             if install_location: user_install_location = install_location
 
         self._install_packages(all_packages, all_swiftpm_flags,
                                extra_include_commands,
                                user_install_location)
+        self._install_bazel_deps(all_bazel_deps,
+                                 user_install_location)
         return '\n'.join(processed_lines)
 
     def _process_install_location_line(self, line):
@@ -477,6 +484,13 @@ class SwiftKernel(Kernel):
             return line, []
         flags = shlex.split(install_swiftpm_flags_match.group(1))
         return '', flags
+
+    def _process_bazel_line(self, line_index, line):
+        bazel_match = re.match(r'^\s*%bazel (.*)$', line)
+        if bazel_match is None:
+            return line, []
+        path = shlex.split(bazel_match.group(1))
+        return '', path
 
     def _process_install_line(self, line_index, line):
         install_match = re.match(r'^\s*%install (.*)$', line)
@@ -566,7 +580,7 @@ class SwiftKernel(Kernel):
         package_install_scratchwork_base = os.path.join(package_install_scratchwork_base, 'swift-install')
         swift_module_search_path = os.path.join(package_install_scratchwork_base,
                                             'modules')
-        self.swift_module_search_path = swift_module_search_path
+        self.swift_module_search_paths = [swift_module_search_path]
 
         scratchwork_base_path = os.path.dirname(swift_module_search_path)
         package_base_path = os.path.join(scratchwork_base_path, 'package')
@@ -769,7 +783,7 @@ class SwiftKernel(Kernel):
             # Create a separate directory for each modulemap file because the
             # ClangImporter requires that they are all named
             # "module.modulemap".
-            # Use the module name to prevent two modulema[s for the same
+            # Use the module name to prevent two modulemaps for the same
             # depndency ending up in multiple directories after several
             # installations, causing the kernel to end up in a bad state.
             # Make all relative header paths in module.modulemap absolute
@@ -822,6 +836,184 @@ class SwiftKernel(Kernel):
             'text': 'Installation complete!\n'
         })
         self.already_installed_packages = True
+
+    def _install_bazel_deps(self, packages, user_install_location):
+        if len(packages) == 0:
+            return
+
+        if hasattr(self, 'debugger'):
+            raise PackageInstallException(
+                    'Install Error: Packages can only be installed during the '
+                    'first cell execution. Restart the kernel to install '
+                    'packages.')
+
+        swift_build_path = os.environ.get('SWIFT_BUILD_PATH')
+        if swift_build_path is None:
+            raise PackageInstallException(
+                    'Install Error: Cannot install packages because '
+                    'SWIFT_BUILD_PATH is not specified.')
+
+        swift_package_path = os.environ.get('SWIFT_PACKAGE_PATH')
+        if swift_package_path is None:
+            raise PackageInstallException(
+                    'Install Error: Cannot install packages because '
+                    'SWIFT_PACKAGE_PATH is not specified.')
+
+        # Install Bazel packages from local workspace.
+        # This follows how we install packages from Swift Package Manager.
+        # 1. We create a phantom BUILD target of libjupyterInstalledPackages.so (note
+        #    that we need to use custom cc_whole_archive_library to make sure all
+        #    symbols are properly preserved). 
+        # 2. We query all swift_library targets, and try to find the *.swiftmodule
+        #    file. If we found, add the path to the swift_module_search_paths. Note
+        #    that we don't move them around in fear of relative directory path issues.
+        # 3. We query all cc_library targets, and try to find module.modulemaps file.
+        #    If we found, add to the swift_module_search_paths.
+        # 4. This doesn't cover some paths we simply added through -I during compilation.
+        #    Hence, we queried the action graph to find the arguments we passed for
+        #    each swift_library target, and add these paths to swift_module_search_paths
+        #    as well.
+        # 5. After initialize Swift REPL with the swift_module_search_paths, dlopen
+        #    previous built .so file.
+        # 6. And we are done! Now you can `import SwiftDependency` as you want in the
+        #    notebook.
+
+        pwd = os.getcwd()
+        workspace = subprocess.check_output(["bazel", "info", "workspace"]).decode("utf-8").strip()
+        bazel_bin_dir = subprocess.check_output(["bazel", "info", "bazel-bin"]).decode("utf-8").strip()
+        execution_root = subprocess.check_output(["bazel", "info", "execution_root"]).decode("utf-8").strip()
+        # Switch to the workspace root, in this way, we can launch the notebook from whatever
+        # subdirectory.
+        os.chdir(workspace)
+        tmpdir = ''.join(random.choice(string.ascii_letters) for i in range(5))
+        bazel_dep_target_path = os.path.join(workspace, '.ibzlnb', tmpdir)
+        os.makedirs(bazel_dep_target_path, exist_ok=True)
+        self.bazel_dep_target_path = bazel_dep_target_path
+
+        # swift_binary doesn't official support build dynamic libraries. Doing so
+        # by adding -shared. Note also that we use gold linker to match what
+        # Swift Package Manager uses. The default linker has issues with Swift symbols.
+        BUILD_template = textwrap.dedent("""\
+            load("@build_bazel_rules_swift//swift:swift.bzl", "swift_binary")
+            load(":whole_archive.bzl", "cc_whole_archive_library")
+            cc_whole_archive_library(
+                name = "jupyterInstalledPackages",
+                deps = [%s]
+            )
+            swift_binary(
+                name = "libjupyterInstalledPackages.so",
+                linkopts = ["-shared", "-fuse-ld=gold"],
+                deps = [":jupyterInstalledPackages"]
+            )
+        """)
+
+        packages_dep = ''
+        packages_human_description = ''
+        for package in packages:
+            unquoted_package = package.strip()
+            if len(unquoted_package) == 0:
+                continue
+            packages_dep += '"%s",\n' % unquoted_package
+            packages_human_description += '|-%s\n' % unquoted_package
+
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Installing packages:\n%s' % packages_human_description
+        })
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Working in: %s\n' % bazel_dep_target_path
+        })
+
+        BUILD = BUILD_template % (packages_dep)
+        whole_archive_bzl = os.path.join(os.path.dirname(sys.argv[0]), 'whole_archive.bzl')
+        shutil.copy(whole_archive_bzl, bazel_dep_target_path)
+        with open('%s/BUILD.bazel' % bazel_dep_target_path, 'w') as f:
+            f.write(BUILD)
+        subprocess.check_output(["bazel", "build", "//.ibzlnb/%s:libjupyterInstalledPackages.so" % tmpdir])
+        env = dict(os.environ, CC="clang")
+        result = subprocess.check_output(["bazel", "query","kind(swift_library, deps(//.ibzlnb/%s:libjupyterInstalledPackages.so))" % tmpdir], env=env).decode("utf-8")
+        # Process *.swiftmodules files
+        swift_module_search_paths = set()
+        for dep in result.split("\n"):
+            dep = dep.strip()
+            if len(dep) == 0:
+                continue
+            if dep[0] == '@':
+                parts = dep[1:].split("//")
+                swift_module = '/'.join(filter(lambda x: len(x) > 0, ['external', parts[0]] + parts[1].split(":"))) + ".swiftmodule"
+            else:
+                parts = dep.split("//")
+                swift_module = '/'.join(filter(lambda x: len(x) > 0, [parts[0]] + parts[1].split(":"))) + ".swiftmodule"
+            result = json.loads(subprocess.check_output(["bazel", "aquery", "mnemonic(SwiftCompile, %s)" % dep, "--output=jsonproto", "--include_artifacts=false"], env=env).decode("utf-8"))
+            for action in result['actions']:
+                for arg in action['arguments']:
+                    if arg.startswith("-I"):
+                        swift_module_search_paths.add(os.path.join(execution_root, arg[2:]))
+                    elif arg.startswith("-iquote"):
+                        swift_module_search_paths.add(os.path.join(execution_root, arg[7:]))
+                    elif arg.startswith("-isystem"):
+                        swift_module_search_paths.add(os.path.join(execution_root, arg[8:]))
+            swift_module = os.path.join(bazel_bin_dir, swift_module)
+            if os.path.exists(swift_module):
+                swift_module_search_paths.add(os.path.dirname(swift_module))
+                self.send_response(self.iopub_socket, 'stream', {
+                    'name': 'stdout',
+                    'text': 'swiftmodule: %s\n' % swift_module
+                })
+        result = subprocess.check_output(["bazel", "query","kind(cc_library, deps(//.ibzlnb/%s:libjupyterInstalledPackages.so))" % tmpdir], env=env).decode("utf-8")
+        # Process *.modulemaps
+        for dep in result.split("\n"):
+            dep = dep.strip()
+            if len(dep) == 0:
+                continue
+            if dep[0] == '@':
+                parts = dep[1:].split("//")
+                modulemaps = '/'.join(filter(lambda x: len(x) > 0, ['external', parts[0]] + parts[1].split(":"))) + ".modulemaps"
+            else:
+                parts = dep.split("//")
+                modulemaps = '/'.join(filter(lambda x: len(x) > 0, [parts[0]] + parts[1].split(":"))) + ".modulemaps"
+            modulemaps = os.path.join(bazel_bin_dir, modulemaps)
+            if os.path.exists(modulemaps):
+                swift_module_search_paths.add(os.path.dirname(modulemaps))
+                self.send_response(self.iopub_socket, 'stream', {
+                    'name': 'stdout',
+                    'text': 'modulemaps: %s\n' % modulemaps
+                })
+        lib_filename = os.path.join(bazel_bin_dir, '.ibzlnb', tmpdir, 'libjupyterInstalledPackages.so')
+        self.swift_module_search_paths = list(swift_module_search_paths)
+
+        # == dlopen the shared lib ==
+
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Initializing Swift...\n'
+        })
+        self._init_swift()
+
+        dynamic_load_code = textwrap.dedent("""\
+            import func Glibc.dlopen
+            import var Glibc.RTLD_NOW
+            dlopen(%s, RTLD_NOW)
+        """ % json.dumps(lib_filename))
+        dynamic_load_result = self._execute(dynamic_load_code)
+        if not isinstance(dynamic_load_result, SuccessWithValue):
+            raise PackageInstallException(
+                    'Install Error: dlopen error: %s' % \
+                            str(dynamic_load_result))
+        if dynamic_load_result.value_description().endswith('nil'):
+            raise PackageInstallException('Install Error: dlopen error. Run '
+                                        '`String(cString: dlerror())` to see '
+                                        'the error message.')
+
+        self.send_response(self.iopub_socket, 'stream', {
+            'name': 'stdout',
+            'text': 'Installation complete!\n'
+        })
+        # Switch back to whatever we previous from.
+        os.chdir(pwd)
+        self.already_installed_packages = True
+
 
     def _execute(self, code):
         locationDirective = '#sourceLocation(file: "%s", line: 1)' % (
@@ -1079,6 +1271,11 @@ class SwiftKernel(Kernel):
             'cursor_start': cursor_pos - len(prefix),
             'cursor_end': cursor_pos,
         }
+
+    def do_shutdown(self, restart):
+        # Need to cleanup the temporary Bazel dependency path.
+        if hasattr(self, 'bazel_dep_target_path'):
+            shutil.rmtree(self.bazel_dep_target_path)
 
 if __name__ == '__main__':
     # Jupyter sends us SIGINT when the user requests execution interruption.
