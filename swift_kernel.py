@@ -229,6 +229,10 @@ class SwiftKernel(Kernel):
             raise Exception('Could not start debugger')
         self.debugger.SetAsync(False)
 
+        if hasattr(self, 'swift_module_search_path'):
+            self.debugger.HandleCommand("settings append target.swift-module-search-paths " + self.swift_module_search_path)
+
+
         # LLDB crashes while trying to load some Python stuff on Mac. Maybe
         # something is misconfigured? This works around the problem by telling
         # LLDB not to load the Python scripting stuff, which we don't use
@@ -521,9 +525,9 @@ class SwiftKernel(Kernel):
         })
         return ''
 
-    def _link_extra_includes(self, swift_import_search_path, include_dir):
+    def _link_extra_includes(self, swift_module_search_path, include_dir):
         for include_file in os.listdir(include_dir):
-            link_name = os.path.join(swift_import_search_path, include_file)
+            link_name = os.path.join(swift_module_search_path, include_file)
             target = os.path.join(include_dir, include_file)
             try:
                 if stat.S_ISLNK(os.lstat(link_name).st_mode):
@@ -558,13 +562,13 @@ class SwiftKernel(Kernel):
                     'Install Error: Cannot install packages because '
                     'SWIFT_PACKAGE_PATH is not specified.')
 
-        swift_import_search_path = os.environ.get('SWIFT_IMPORT_SEARCH_PATH')
-        if swift_import_search_path is None:
-            raise PackageInstallException(
-                    'Install Error: Cannot install packages because '
-                    'SWIFT_IMPORT_SEARCH_PATH is not specified.')
+        package_install_scratchwork_base = tempfile.mkdtemp()
+        package_install_scratchwork_base = os.path.join(package_install_scratchwork_base, 'swift-install')
+        swift_module_search_path = os.path.join(package_install_scratchwork_base,
+                                            'modules')
+        self.swift_module_search_path = swift_module_search_path
 
-        scratchwork_base_path = os.path.dirname(swift_import_search_path)
+        scratchwork_base_path = os.path.dirname(swift_module_search_path)
         package_base_path = os.path.join(scratchwork_base_path, 'package')
 
         # If the user has specified a custom install location, make a link from
@@ -588,7 +592,7 @@ class SwiftKernel(Kernel):
         os.makedirs(package_base_path, exist_ok=True)
 
         # Make the directory containing our built modules and other includes.
-        os.makedirs(swift_import_search_path, exist_ok=True)
+        os.makedirs(swift_module_search_path, exist_ok=True)
 
         # Make links from the install location to extra includes.
         for include_command in extra_include_commands:
@@ -610,7 +614,7 @@ class SwiftKernel(Kernel):
                             '%%install-extra-include-command: %s' % include_dir)
                     continue
                 include_dir = include_dir[2:]
-                self._link_extra_includes(swift_import_search_path, include_dir)
+                self._link_extra_includes(swift_module_search_path, include_dir)
 
         # Summary of how this works:
         # - create a SwiftPM package that depends on all the packages that
@@ -756,7 +760,7 @@ class SwiftKernel(Kernel):
         cursor.execute(SQL_FILES_SELECT, ['%.swiftmodule'])
         swift_modules = [row[0] for row in cursor.fetchall() if is_valid_dependency(row[0])]
         for filename in swift_modules:
-            shutil.copy(filename, swift_import_search_path)
+            shutil.copy(filename, swift_module_search_path)
 
         # Process modulemap files
         cursor.execute(SQL_FILES_SELECT, ['%/module.modulemap'])
@@ -783,7 +787,7 @@ class SwiftKernel(Kernel):
 
                 module_match = re.match(r'module\s+([^\s]+)\s.*{', modulemap_contents)
                 module_name = module_match.group(1) if module_match is not None else str(index)
-                modulemap_dest = os.path.join(swift_import_search_path, 'modulemap-%s' % module_name)
+                modulemap_dest = os.path.join(swift_module_search_path, 'modulemap-%s' % module_name)
                 os.makedirs(modulemap_dest, exist_ok=True)
                 dst_path = os.path.join(modulemap_dest, src_filename)
 
