@@ -170,6 +170,42 @@ instructions, with some modifications:
 This will create a tar file containing the full toolchain. You can now proceed
 with the installation instructions from the previous section.
 
+## (optional) Building LLDB Python3 support without Swift for TensorFlow
+
+Install the Python 3 development headers. (For Ubuntu 20.04,
+`sudo apt-get install libpython3-dev`).
+
+Have a place to checkout relevant toolchains, and checkout the relevant code:
+
+```
+mkdir /opt/swift && cd /opt/swift
+git clone https://github.com/apple/llvm-project.git
+git clone https://github.com/apple/swift.git
+git clone https://github.com/apple/swift-corelibs-libdispatch.git
+git clone https://github.com/apple/swift-cmark.git cmark
+```
+
+Make sure you checked out the right branch for all dependencies. For example,
+the `llvm-project` should check the branch starting with `swift`, such as
+`swift/release/5.3`. You should be able to find the correct branch with name
+`release/*` in all these projects except the `llvm-project`.
+
+Go to `swift/utils`, and run:
+```
+./build-script --release --lldb
+```
+
+This will build LLDB with Python3 support. Copying everything under
+`build/Ninja-.../lldb-...-x86_64/lib` and everything under
+`build/Ninja-.../lldb-...-x86_64/bin` to your Swift environment. For example:
+`/opt/swift-5.3/usr/`.
+
+There may be some issues with `lib/python3` directory not being exactly the
+same as we should expect. It is safe to rename `site-packages` to `dist-packages`.
+
+With the updated LLDB toolchain, you should be able to register the Swift
+kernel now.
+
 # Usage Instructions
 
 ## Rich output with Python

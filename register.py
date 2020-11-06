@@ -174,7 +174,7 @@ def main():
     kernel_json = {
         'argv': [
             sys.executable,
-            os.path.join(script_dir,'parent_kernel.py'),
+            os.path.join(script_dir,'swift_kernel.py'),
             '-f',
             '{connection_file}',
         ],
