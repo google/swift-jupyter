@@ -923,24 +923,29 @@ class SwiftKernel(Kernel):
             stack_trace.append(str(frame))
         return stack_trace
 
-    def _make_error_message(self, traceback):
+    def _make_execute_reply_error_message(self, traceback):
         return {
             'status': 'error',
             'execution_count': self.execution_count,
             'ename': '',
             'evalue': '',
-            'traceback': traceback
+            'traceback': traceback,
         }
 
+    def _send_iopub_error_message(self, traceback):
+        self.send_response(self.iopub_socket, 'error', {
+            'ename': '',
+            'evalue': '',
+            'traceback': traceback,
+        })
+
     def _send_exception_report(self, while_doing, e):
-        error_message = self._make_error_message([
+        self._send_iopub_error_message([
             'Kernel is in a bad state. Try restarting the kernel.',
             '',
             'Exception in `%s`:' % while_doing,
             str(e)
         ])
-        self.send_response(self.iopub_socket, 'error', error_message)
-        return error_message
 
     def _execute_cell(self, code):
         self._set_parent_message()
@@ -967,9 +972,8 @@ class SwiftKernel(Kernel):
         try:
             code = self._process_installs(code)
         except PackageInstallException as e:
-            error_message = self._make_error_message([str(e)])
-            self.send_response(self.iopub_socket, 'error', error_message)
-            return error_message
+            self._send_iopub_error_message([str(e)])
+            return self._make_execute_reply_error_message([str(e)])
         except Exception as e:
             self._send_exception_report('_process_installs', e)
             raise e
@@ -1017,8 +1021,7 @@ class SwiftKernel(Kernel):
             }
         elif isinstance(result, ExecutionResultError):
             if not self.process.is_alive:
-                error_message = self._make_error_message(['Process killed'])
-                self.send_response(self.iopub_socket, 'error', error_message)
+                self._send_iopub_error_message(['Process killed'])
 
                 # Exit the kernel because there is no way to recover from a
                 # killed process. The UI will tell the user that the kernel has
@@ -1028,7 +1031,7 @@ class SwiftKernel(Kernel):
                 loop = ioloop.IOLoop.current()
                 loop.add_timeout(time.time()+0.1, loop.stop)
 
-                return error_message
+                return self._make_execute_reply_error_message(['Process killed'])
 
             if stdout_handler.had_stdout:
                 # When there is stdout, it is a runtime error. Stdout, which we
@@ -1043,15 +1046,13 @@ class SwiftKernel(Kernel):
                     for frame in self._get_pretty_main_thread_stack_trace()
                 ]
 
-                error_message = self._make_error_message(traceback)
-                self.send_response(self.iopub_socket, 'error', error_message)
-                return error_message
+                self._send_iopub_error_message(traceback)
+                return self._make_execute_reply_error_message(traceback)
 
             # There is no stdout, so it must be a compile error. Simply return
             # the error without trying to get a stack trace.
-            error_message = self._make_error_message([result.description()])
-            self.send_response(self.iopub_socket, 'error', error_message)
-            return error_message
+            self._send_iopub_error_message([result.description()])
+            return self._make_execute_reply_error_message([result.description()])
 
     def do_complete(self, code, cursor_pos):
         if not self.completion_enabled:
