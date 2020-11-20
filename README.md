@@ -320,7 +320,8 @@ can import them:
 %install '.package(path: "$cwd/SimplePackage")' SimplePackage
 ```
 
-The first argument to `%install` is a [SwiftPM package dependency specification](https://github.com/apple/swift-package-manager/blob/master/Documentation/PackageDescriptionV4.md#dependencies).
+The first argument to `%install` is a
+[SwiftPM package dependency specification](https://github.com/apple/swift-package-manager/blob/main/Documentation/PackageDescription.md#package-dependency).
 The next argument(s) to `%install` are the products that you want to install from the package.
 
 `%install` directives currently have some limitations:
