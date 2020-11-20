@@ -71,12 +71,14 @@ class CompleteCrash(CompleteException):
 
 class NotebookTestRunner:
     def __init__(self, notebook, char_step=1, repeat_times=1,
-                 execute_timeout=60, complete_timeout=5, verbose=True):
+                 execute_wait=0, execute_timeout=60, complete_timeout=5,
+                 verbose=True):
         """
         noteboook - path to a notebook to run the test on
         char_step - number of chars to step per completion request. 0 disables
         repeat_times - run the notebook this many times, in the same kernel
                        instance
+        execute_wait - number of seconds to wait after executing a cell
         execute_timeout - number of seconds to wait for cell execution
         complete_timeout - number of seconds to wait for completion
         verbose - print progress, statistics, and errors
@@ -84,6 +86,7 @@ class NotebookTestRunner:
 
         self.char_step = char_step
         self.repeat_times = repeat_times
+        self.execute_wait = execute_wait
         self.execute_timeout = execute_timeout
         self.complete_timeout = complete_timeout
         self.verbose = verbose
@@ -195,6 +198,7 @@ class NotebookTestRunner:
             start_time = time.time()
             self._execute_cell(cell_index)
             execute_time = 1000 * (time.time() - start_time)
+            time.sleep(self.execute_wait)
 
             # Report the results.
             report = 'Cell %d/%d: done' % (cell_index, len(self.code_cells))
@@ -268,6 +272,8 @@ def parse_args():
     parser.add_argument('--repeat-times', type=int, default=1,
                         help='run the notebook this many times, in the same '
                              'kernel instance')
+    parser.add_argument('--execute-wait', type=int, default=0,
+                        help='number of seconds to wait after executing a cell')
     parser.add_argument('--execute-timeout', type=int, default=15,
                         help='number of seconds to wait for cell execution')
     parser.add_argument('--complete-timeout', type=int, default=5,
