@@ -441,11 +441,21 @@ class SwiftKernel(Kernel):
             all_bazel_deps += bazel_deps
             if install_location: user_install_location = install_location
 
-        self._install_packages(all_packages, all_swiftpm_flags,
-                               extra_include_commands,
-                               user_install_location)
-        self._install_bazel_deps(all_bazel_deps,
-                                 user_install_location)
+        if len(all_packages) > 0 or len(all_swiftpm_flags) > 0:
+            if len(all_bazel_deps) > 0:
+                raise PackageInstallException(
+                        'Cannot install SwiftPM packages at the same time with Bazel packages.')
+            self._install_packages(all_packages, all_swiftpm_flags,
+                                   extra_include_commands,
+                                   user_install_location)
+        elif len(all_bazel_deps) > 0:
+            if len(extra_include_commands) > 0:
+                raise PackageInstallException(
+                        'Cannot specify extra include commands %s for Bazel packages.' % extra_include_commands)
+            if user_install_location is not None:
+                raise PackageInstallException(
+                        'Cannot specify user install location %s for Bazel packages.' % user_install_location)
+            self._install_bazel_deps(all_bazel_deps)
         return '\n'.join(processed_lines)
 
     def _process_install_location_line(self, line):
@@ -552,6 +562,22 @@ class SwiftKernel(Kernel):
                 raise PackageInstallException(
                         'Failed to stat scratchwork base path: %s' % str(e))
             os.symlink(target, link_name)
+
+    def _dlopen_shared_lib(self, lib_filename):
+        dynamic_load_code = textwrap.dedent("""\
+            import func Glibc.dlopen
+            import var Glibc.RTLD_NOW
+            dlopen(%s, RTLD_NOW)
+        """ % json.dumps(lib_filename))
+        dynamic_load_result = self._execute(dynamic_load_code)
+        if not isinstance(dynamic_load_result, SuccessWithValue):
+            raise PackageInstallException(
+                    'Install Error: dlopen error: %s' % \
+                            str(dynamic_load_result))
+        if dynamic_load_result.value_description().endswith('nil'):
+            raise PackageInstallException('Install Error: dlopen error. Run '
+                                        '`String(cString: dlerror())` to see '
+                                        'the error message.')
 
     def _install_packages(self, packages, swiftpm_flags, extra_include_commands,
                           user_install_location):
@@ -815,21 +841,7 @@ class SwiftKernel(Kernel):
             'text': 'Initializing Swift...\n'
         })
         self._init_swift()
-
-        dynamic_load_code = textwrap.dedent("""\
-            import func Glibc.dlopen
-            import var Glibc.RTLD_NOW
-            dlopen(%s, RTLD_NOW)
-        """ % json.dumps(lib_filename))
-        dynamic_load_result = self._execute(dynamic_load_code)
-        if not isinstance(dynamic_load_result, SuccessWithValue):
-            raise PackageInstallException(
-                    'Install Error: dlopen error: %s' % \
-                            str(dynamic_load_result))
-        if dynamic_load_result.value_description().endswith('nil'):
-            raise PackageInstallException('Install Error: dlopen error. Run '
-                                        '`String(cString: dlerror())` to see '
-                                        'the error message.')
+        self._dlopen_shared_lib(lib_filename)
 
         self.send_response(self.iopub_socket, 'stream', {
             'name': 'stdout',
@@ -837,7 +849,7 @@ class SwiftKernel(Kernel):
         })
         self.already_installed_packages = True
 
-    def _install_bazel_deps(self, packages, user_install_location):
+    def _install_bazel_deps(self, packages):
         if len(packages) == 0:
             return
 
@@ -846,18 +858,6 @@ class SwiftKernel(Kernel):
                     'Install Error: Packages can only be installed during the '
                     'first cell execution. Restart the kernel to install '
                     'packages.')
-
-        swift_build_path = os.environ.get('SWIFT_BUILD_PATH')
-        if swift_build_path is None:
-            raise PackageInstallException(
-                    'Install Error: Cannot install packages because '
-                    'SWIFT_BUILD_PATH is not specified.')
-
-        swift_package_path = os.environ.get('SWIFT_PACKAGE_PATH')
-        if swift_package_path is None:
-            raise PackageInstallException(
-                    'Install Error: Cannot install packages because '
-                    'SWIFT_PACKAGE_PATH is not specified.')
 
         # Install Bazel packages from local workspace.
         # This follows how we install packages from Swift Package Manager.
@@ -990,21 +990,7 @@ class SwiftKernel(Kernel):
             'text': 'Initializing Swift...\n'
         })
         self._init_swift()
-
-        dynamic_load_code = textwrap.dedent("""\
-            import func Glibc.dlopen
-            import var Glibc.RTLD_NOW
-            dlopen(%s, RTLD_NOW)
-        """ % json.dumps(lib_filename))
-        dynamic_load_result = self._execute(dynamic_load_code)
-        if not isinstance(dynamic_load_result, SuccessWithValue):
-            raise PackageInstallException(
-                    'Install Error: dlopen error: %s' % \
-                            str(dynamic_load_result))
-        if dynamic_load_result.value_description().endswith('nil'):
-            raise PackageInstallException('Install Error: dlopen error. Run '
-                                        '`String(cString: dlerror())` to see '
-                                        'the error message.')
+        self._dlopen_shared_lib(lib_filename)
 
         self.send_response(self.iopub_socket, 'stream', {
             'name': 'stdout',
