@@ -1,0 +1,7 @@
+build:clang --action_env=CC=clang
+build:clang --action_env=CXX=clang++
+build:clang --linkopt='-L/usr/local/lib'
+build:clang --linkopt='-Wl,-rpath,/usr/local/lib'
+
+build --config=clang
+

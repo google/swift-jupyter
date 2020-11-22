@@ -1,0 +1,28 @@
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
+
+git_repository(
+	name = "build_bazel_rules_swift",
+	remote = "https://github.com/bazelbuild/rules_swift.git",
+	commit = "6ae82f57ebefa13df5ce1daf7a2fd3080e41df55",
+	shallow_since = "1599689969 -0700"
+)
+
+load("@build_bazel_rules_swift//swift:repositories.bzl", "swift_rules_dependencies")
+
+swift_rules_dependencies()
+
+load("@build_bazel_apple_support//lib:repositories.bzl", "apple_support_dependencies")
+
+apple_support_dependencies()
+
+load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
+
+protobuf_deps()
+
+new_git_repository(
+	name = "PythonKit",
+	remote = "https://github.com/pvieito/PythonKit.git",
+	commit = "59a868e84e1d6a5e01569cf92086554033415fa4",
+	shallow_since = "1604702703 -0800",
+	build_file = "PythonKit.BUILD"
+)
