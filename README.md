@@ -22,7 +22,7 @@ Dependencies:
 
 ### Installation
 
-swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/master/Installation.md#pre-built-packages). Alternatively, you can build a toolchain from sources (see the section below for instructions).
+swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/main/Installation.md#pre-built-packages). Alternatively, you can build a toolchain from sources (see the section below for instructions).
 
 Extract the Swift toolchain somewhere.
 
@@ -61,7 +61,7 @@ Operating system:
 
 #### 1. Get toolchain
 
-swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/master/Installation.md#pre-built-packages). Alternatively, you can build a toolchain from sources (see the section below for instructions).
+swift-jupyter requires a Swift toolchain with LLDB Python3 support. Currently, the only prebuilt toolchains with LLDB Python3 support are the [Swift for TensorFlow Ubuntu 18.04 Nightly Builds](https://github.com/tensorflow/swift/blob/main/Installation.md#pre-built-packages). Alternatively, you can build a toolchain from sources (see the section below for instructions).
 
 Extract the Swift toolchain somewhere.
 
@@ -260,7 +260,7 @@ display.display(pd.DataFrame.from_records([["col 1": 3, "col 2": 5], ["col 1": 8
 
 ![Screenshot of running the above two snippets of code in Jupyter](./screenshots/display_pandas.png)
 
-[Swift's Python interop]: https://github.com/tensorflow/swift/blob/master/docs/PythonInteroperability.md
+[Swift's Python interop]: https://github.com/tensorflow/swift/blob/main/docs/PythonInteroperability.md
 
 ## Inline plots
 
