@@ -154,6 +154,8 @@ class SwiftKernelTests(jupyter_kernel_test.KernelTests):
                 self.assertEqual(msg['content']['execution_state'], 'idle')
                 break
 
+        self.flush_channels()
+
         # Check that the kernel can still execute things after handling an
         # interrupt.
         reply, output_msgs = self.execute_helper(
