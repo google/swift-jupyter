@@ -1,8 +1,4 @@
-"""Runs all tests that work locally.
-
-Specifically, this excludes the SwiftKernelTestsPython27 test that requires a
-special kernel named 'swift-with-python-2.7'.
-"""
+"""Runs all tests."""
 
 import unittest
 

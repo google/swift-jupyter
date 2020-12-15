@@ -400,8 +400,8 @@ you can activate the virtualenv and run the tests:
 ```
 . venv/bin/activate
 python test/fast_test.py  # Fast tests, should complete in 1-2 min
-python test/all_test_local.py  # Much slower, 10+ min
-python test/all_test_local.py SimpleNotebookTests.test_simple_successful  # Invoke specific test method
+python test/all_test.py  # Much slower, 10+ min
+python test/all_test.py SimpleNotebookTests.test_simple_successful  # Invoke specific test method
 ```
 
 You might also be interested in manually invoking the notebook tester on
@@ -416,5 +416,5 @@ python test/notebook_tester.py --help
 After building the docker image according to the instructions above,
 
 ```
-docker run --cap-add SYS_PTRACE swift-jupyter python3 /swift-jupyter/test/all_test_docker.py
+docker run --cap-add SYS_PTRACE swift-jupyter python3 /swift-jupyter/test/all_test.py
 ```

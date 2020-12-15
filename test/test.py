@@ -1,4 +1,4 @@
-"""Copy of "all_test_docker.py", for backwards-compatibility with CI scripts
+"""Copy of "all_test.py", for backwards-compatibility with CI scripts
 that call "test.py".
 
 TODO: Delete this after updating CI scripts.

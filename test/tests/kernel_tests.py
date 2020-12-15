@@ -4,6 +4,7 @@
 import unittest
 import jupyter_kernel_test
 import time
+import os
 
 from jupyter_client.manager import start_new_kernel
 
@@ -69,6 +70,7 @@ class SwiftKernelTests(jupyter_kernel_test.KernelTests):
 
     def test_gradient_across_cells_error(self):
         reply, output_msgs = self.execute_helper(code="""
+           import _Differentiation
            func square(_ x : Float) -> Float { return x * x }
         """)
         self.assertEqual(reply['content']['status'], 'ok')
@@ -86,6 +88,7 @@ class SwiftKernelTests(jupyter_kernel_test.KernelTests):
 
     def test_gradient_across_cells(self):
         reply, output_msgs = self.execute_helper(code="""
+           import _Differentiation
            @differentiable
            func square(_ x : Float) -> Float { return x * x }
         """)
@@ -198,6 +201,9 @@ class SwiftKernelTests(jupyter_kernel_test.KernelTests):
             if msg['msg_type'] == 'status':
                 break
 
+    @unittest.skipIf(
+        os.environ.get('TENSORFLOW_USE_STANDARD_TOOLCHAIN') == 'YES',
+        'Completion not suported on standard toolchains')
     def test_swift_completion(self):
         reply, output_msgs = self.execute_helper(code="""
             func aFunctionToComplete() {}
