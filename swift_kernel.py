@@ -34,6 +34,7 @@ import sqlite3
 import json
 import random
 
+from hashlib import sha256
 from ipykernel.kernelbase import Kernel
 from jupyter_client.jsonutil import squash_dates
 from tornado import ioloop
@@ -880,6 +881,7 @@ class SwiftKernel(Kernel):
 
         pwd = os.getcwd()
         workspace = subprocess.check_output(["bazel", "info", "workspace"]).decode("utf-8").strip()
+        output_base = os.path.join(tempfile.gettempdir(), "ibzl", sha256(workspace.encode('utf-8')).hexdigest())
         bazel_bin_dir = subprocess.check_output(["bazel", "info", "bazel-bin"]).decode("utf-8").strip()
         execution_root = subprocess.check_output(["bazel", "info", "execution_root"]).decode("utf-8").strip()
         # Switch to the workspace root, in this way, we can launch the notebook from whatever
@@ -932,7 +934,7 @@ class SwiftKernel(Kernel):
             f.write(BUILD)
         subprocess.check_output(["bazel", "build", "//.ibzlnb/%s:libjupyterInstalledPackages.so" % tmpdir])
         env = dict(os.environ, CC="clang")
-        result = subprocess.check_output(["bazel", "query","kind(swift_library, deps(//.ibzlnb/%s:libjupyterInstalledPackages.so))" % tmpdir], env=env).decode("utf-8")
+        result = subprocess.check_output(["bazel", "--output_base=%s" % output_base, "query", "kind(swift_library, deps(//.ibzlnb/%s:libjupyterInstalledPackages.so))" % tmpdir], env=env).decode("utf-8")
         # Process *.swiftmodules files
         swift_module_search_paths = set()
         for dep in result.split("\n"):
@@ -961,7 +963,7 @@ class SwiftKernel(Kernel):
                     'name': 'stdout',
                     'text': 'swiftmodule: %s\n' % swift_module
                 })
-        result = subprocess.check_output(["bazel", "query","kind(cc_library, deps(//.ibzlnb/%s:libjupyterInstalledPackages.so))" % tmpdir], env=env).decode("utf-8")
+        result = subprocess.check_output(["bazel", "--output_base=%s" % output_base, "query", "kind(cc_library, deps(//.ibzlnb/%s:libjupyterInstalledPackages.so))" % tmpdir], env=env).decode("utf-8")
         # Process *.modulemaps
         for dep in result.split("\n"):
             dep = dep.strip()
