@@ -941,22 +941,18 @@ class SwiftKernel(Kernel):
             dep = dep.strip()
             if len(dep) == 0:
                 continue
-            if dep[0] == '@':
-                parts = dep[1:].split("//")
-                swift_module = '/'.join(filter(lambda x: len(x) > 0, ['external', parts[0]] + parts[1].split(":"))) + ".swiftmodule"
-            else:
-                parts = dep.split("//")
-                swift_module = '/'.join(filter(lambda x: len(x) > 0, [parts[0]] + parts[1].split(":"))) + ".swiftmodule"
             result = json.loads(subprocess.check_output(["bazel", "aquery", "mnemonic(SwiftCompile, %s)" % dep, "--output=jsonproto", "--include_artifacts=false"], env=env).decode("utf-8"))
             for action in result['actions']:
-                for arg in action['arguments']:
+                for i, arg in enumerate(action['arguments']):
                     if arg.startswith("-I"):
                         swift_module_search_paths.add(os.path.join(execution_root, arg[2:]))
                     elif arg.startswith("-iquote"):
                         swift_module_search_paths.add(os.path.join(execution_root, arg[7:]))
                     elif arg.startswith("-isystem"):
                         swift_module_search_paths.add(os.path.join(execution_root, arg[8:]))
-            swift_module = os.path.join(bazel_bin_dir, swift_module)
+                    elif arg == "-emit-module-path":
+                        swift_module = action["arguments"][i + 1]
+            swift_module = os.path.join(execution_root, swift_module)
             if os.path.exists(swift_module):
                 swift_module_search_paths.add(os.path.dirname(swift_module))
                 self.send_response(self.iopub_socket, 'stream', {
