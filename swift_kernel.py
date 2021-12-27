@@ -292,7 +292,7 @@ class SwiftKernel(Kernel):
         result = self._preprocess_and_execute(
                 '%include "KernelCommunicator.swift"')
         if isinstance(result, ExecutionResultError):
-            raise Exception('Error initing KernelCommunicator: %s' % result)
+            raise Exception('Error initializing KernelCommunicator: %s' % result)
 
         session_key = self.session.key.decode('utf8')
         decl_code = """
@@ -601,7 +601,7 @@ class SwiftKernel(Kernel):
                                     stderr=subprocess.PIPE)
             if result.returncode != 0:
                 raise PackageInstallException(
-                        '%%install-extra-include-command returned nonzero '
+                        '%install-extra-include-command returned nonzero '
                         'exit code: %d\nStdout:\n%s\nStderr:\n%s\n' % (
                                 result.returncode,
                                 result.stdout.decode('utf8'),
@@ -611,7 +611,7 @@ class SwiftKernel(Kernel):
                 if include_dir[0:2] != '-I':
                     self.log.warn(
                             'Non "-I" output from '
-                            '%%install-extra-include-command: %s' % include_dir)
+                            '%install-extra-include-command: %s' % include_dir)
                     continue
                 include_dir = include_dir[2:]
                 self._link_extra_includes(swift_module_search_path, include_dir)
