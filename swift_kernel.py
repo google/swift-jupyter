@@ -423,7 +423,7 @@ class SwiftKernel(Kernel):
         user_install_location = None
         for index, line in enumerate(code.split('\n')):
             line = self._process_system_command_line(line)
-            line, install_location = self._process_install_location_line(line_index, line)
+            line, install_location = self._process_install_location_line(index, line)
             line, swiftpm_flags = self._process_install_swiftpm_flags_line(
                     line)
             all_swiftpm_flags += swiftpm_flags
