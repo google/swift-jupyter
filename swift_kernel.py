@@ -486,7 +486,7 @@ class SwiftKernel(Kernel):
         parsed = shlex.split(install_match.group(1))
         if len(parsed) < 2:
             raise PackageInstallException(
-                    'Line %d: %install usage: SPEC PRODUCT [PRODUCT ...]' % (
+                    'Line %d: %%install usage: SPEC PRODUCT [PRODUCT ...]' % (
                             line_index + 1))
         try:
             spec = string.Template(parsed[0]).substitute({"cwd": os.getcwd()})
