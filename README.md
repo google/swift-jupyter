@@ -1,3 +1,9 @@
+# Unmaintained Project
+
+Warning: This project has been unmaintained since around the end of 2020.
+
+Consider using https://github.com/philipturner/swift-colab instead.
+
 # Swift-Jupyter
 
 This is a Jupyter Kernel for Swift, intended to make it possible to use Jupyter
