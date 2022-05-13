@@ -2,7 +2,7 @@
 
 Warning: This project has been unmaintained since around the end of 2020.
 
-Consider using https://github.com/philipturner/swift-colab instead.
+Consider using [Swift-Colab](https://github.com/philipturner/swift-colab) instead.
 
 # Swift-Jupyter
 
